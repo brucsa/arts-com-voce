@@ -199,9 +199,18 @@ function rotearAdmin() {
   window.scrollTo(0, 0);
 }
 
+// Mantém o endereço do Joca sempre em #/meu, inclusive quando ele chega
+// sem rota (logo após o login) ou digita outra rota com a página aberta.
+function fixarRotaJoca() {
+  if (location.hash !== '#/meu') {
+    history.replaceState(null, '', `${location.pathname}${location.search}#/meu`);
+  }
+}
+
 function montarJoca() {
   // O Joca só tem uma tela. Qualquer outro endereço volta para ela.
-  if (location.hash && location.hash !== '#/meu') history.replaceState(null, '', '#/meu');
+  fixarRotaJoca();
+  window.addEventListener('hashchange', fixarRotaJoca);
   document.title = 'Joca ⭐ · Arts com Você';
 
   app.innerHTML = `
