@@ -236,6 +236,79 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .metrica-disponivel { background: var(--lilas-claro); color: var(--lilas-escuro); }
 .metrica-recebido { background: var(--menta-claro); color: var(--menta-escuro); }
 
+/* ---------------------------------------------------------- Configurações (Etapa 1) */
+.abas {
+  display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none;
+  margin: 0 -16px; padding: 0 16px 2px;
+}
+.abas::-webkit-scrollbar { display: none; }
+.aba {
+  flex: none; display: inline-flex; align-items: center; gap: 6px;
+  min-height: 40px; padding: 0 14px; border-radius: 999px;
+  border: 1px solid var(--linha-forte); background: var(--papel);
+  font-weight: 700; cursor: pointer; color: var(--tinta-2);
+}
+.aba i { font-size: 18px; }
+.aba[aria-selected="true"] { background: var(--azul-claro); border-color: var(--azul-claro); color: var(--azul-escuro); }
+.painel, .painel-area { display: grid; gap: 16px; }
+
+.cartao-topo { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
+.cartao-topo h3 { margin: 0; }
+.lista { list-style: none; margin: 0; padding: 0; display: grid; }
+.linha {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 12px 0; border-top: 1px solid var(--linha);
+}
+.lista > .linha:first-child { border-top: 0; }
+.linha-texto { display: grid; gap: 2px; min-width: 0; }
+.linha-texto strong { font-weight: 700; overflow-wrap: anywhere; }
+.linha-texto .texto-secundario { font-size: .875rem; }
+.linha-valor { font-weight: 800; white-space: nowrap; }
+.linha-valor.pendente { color: var(--ambar-escuro); }
+.linha-acoes { display: flex; align-items: center; gap: 6px; flex: none; }
+.linha-acoes .botao { min-height: 38px; padding: 0 14px; }
+.linha.inativo .linha-texto strong { color: var(--tinta-3); }
+.botao-icone:disabled { opacity: .35; cursor: default; }
+
+.grupo { display: grid; gap: 4px; margin-top: 12px; }
+.grupo-nome { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: .875rem; color: var(--tinta-2); }
+.grupo-nome strong { color: var(--tinta); font-size: 1rem; }
+.vazio { font-size: .9rem; padding: 6px 0; }
+.nota { font-size: .875rem; margin-top: 12px; }
+
+.selo-p { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: .72rem; font-weight: 800; vertical-align: middle; }
+.selo-inativo { background: var(--creme); color: var(--tinta-2); border: 1px solid var(--linha); }
+.selo-ativo { background: var(--menta-claro); color: var(--menta-escuro); }
+.selo-despesa { background: var(--ambar-claro); color: var(--ambar-escuro); }
+.selo-estoque { background: var(--menta-claro); color: var(--menta-escuro); }
+.selo-investimento { background: var(--lilas-claro); color: var(--lilas-escuro); }
+
+.historico { list-style: none; margin: 0; padding: 0; display: grid; }
+.historico li { display: grid; gap: 2px; padding: 10px 0; border-top: 1px solid var(--linha); font-size: .92rem; }
+.historico li:first-child { border-top: 0; }
+.historico-quando { font-size: .8rem; color: var(--tinta-2); }
+
+.aviso-ok { background: var(--menta-claro); color: var(--menta-escuro); margin-bottom: 8px; }
+
+/* formulários em folha */
+.folha-form form { display: grid; gap: 14px; }
+.form-campos { display: grid; gap: 14px; }
+.campo label em { font-style: normal; font-weight: 400; color: var(--tinta-2); }
+.campo select {
+  min-height: 46px; padding: 0 12px; font-weight: 400; font-size: 1rem;
+  border: 1px solid var(--linha-forte); border-radius: var(--raio-p); background: var(--papel);
+}
+.campo select:disabled { background: var(--creme); color: var(--tinta-2); }
+.campo-dica { font-weight: 400; font-size: .82rem; color: var(--tinta-2); }
+.campo-erro { font-weight: 700; font-size: .82rem; color: var(--erro); }
+.campo [aria-invalid="true"] { border-color: var(--erro); }
+.campo-check label { display: flex; align-items: flex-start; gap: 10px; font-weight: 600; cursor: pointer; }
+.campo-check input { width: 20px; height: 20px; margin: 2px 0 0; accent-color: var(--azul); flex: none; }
+.form-acoes { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.form-acoes .espaco { flex: 1; }
+.botao-perigo { color: var(--erro); border-color: var(--erro-claro); }
+.botao-perigo:hover { background: var(--erro-claro); }
+
 /* ---------------------------------------------------------- Joca */
 .shell-joca { min-height: 100dvh; }
 .topo-joca { justify-content: space-between; }
@@ -264,4 +337,6 @@ button, input, select, textarea { font: inherit; color: inherit; }
     padding: 20px;
   }
   .topo-joca { padding: 16px 32px; }
+  .abas { margin: 0; padding: 0; flex-wrap: wrap; }
 }
+.folha { overflow-y: auto; }

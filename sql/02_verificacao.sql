@@ -101,6 +101,55 @@ with checagens (ordem, verificacao, passou, detalhe) as (
          exists (select 1 from pg_trigger where tgname = 'trg_perfis_auditoria' and not tgisinternal)
      and exists (select 1 from public.auditoria where tabela = 'perfis'),
          (select count(*)::text || ' registros de perfis' from public.auditoria where tabela = 'perfis')
+
+  -- Etapa 1: Configurações ---------------------------------------------
+  -- (as linhas abaixo só passam depois de rodar sql/03_configuracoes.sql)
+  union all
+  select 13, 'Configurações: todas as regras de acesso exigem a Admin',
+         (select count(*) from pg_policies
+           where schemaname = 'public'
+             and tablename in ('configuracoes', 'configuracoes_hist', 'canais',
+                               'categorias_lanc', 'categorias_produto', 'materiais')) = 7
+     and not exists (
+           select 1 from pg_policies
+            where schemaname = 'public'
+              and tablename in ('configuracoes', 'configuracoes_hist', 'canais',
+                                'categorias_lanc', 'categorias_produto', 'materiais')
+              and coalesce(qual, '') || coalesce(with_check, '') not like '%is_admin()%'),
+         (select count(*)::text || ' regras encontradas (esperado 7)' from pg_policies
+           where schemaname = 'public'
+             and tablename in ('configuracoes', 'configuracoes_hist', 'canais',
+                               'categorias_lanc', 'categorias_produto', 'materiais'))
+
+  union all
+  select 14, 'Parâmetros: existe exatamente 1 linha',
+         case when to_regclass('public.configuracoes') is null then false
+              else (xpath('/row/c/text()',
+                     query_to_xml('select count(*) as c from public.configuracoes', false, true, '')))[1]::text = '1'
+         end,
+         case when to_regclass('public.configuracoes') is null then 'Rode sql/03_configuracoes.sql' else '' end
+
+  union all
+  select 15, 'Parâmetros e histórico: ninguém cria, apaga ou grava histórico pela API',
+         case when to_regclass('public.configuracoes_hist') is null then false
+              else has_table_privilege('authenticated', 'public.configuracoes_hist', 'SELECT')
+               and not has_table_privilege('authenticated', 'public.configuracoes_hist', 'INSERT')
+               and not has_table_privilege('authenticated', 'public.configuracoes_hist', 'UPDATE')
+               and not has_table_privilege('authenticated', 'public.configuracoes_hist', 'DELETE')
+               and not has_table_privilege('authenticated', 'public.configuracoes', 'INSERT')
+               and not has_table_privilege('authenticated', 'public.configuracoes', 'DELETE')
+         end,
+         case when to_regclass('public.configuracoes_hist') is null then 'Rode sql/03_configuracoes.sql' else '' end
+
+  union all
+  select 16, 'Sem categoria de energia elétrica (R35)',
+         case when to_regclass('public.categorias_lanc') is null then false
+              else (xpath('/row/c/text()',
+                     query_to_xml($q$select count(*) as c from public.categorias_lanc
+                                    where lower(nome) like '%energia%' or lower(nome) like '%luz%'$q$,
+                                  false, true, '')))[1]::text = '0'
+         end,
+         case when to_regclass('public.categorias_lanc') is null then 'Rode sql/03_configuracoes.sql' else '' end
 )
 select ordem as "#",
        verificacao as "Verificação",

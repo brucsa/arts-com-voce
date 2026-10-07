@@ -3,7 +3,7 @@
 Sistema web de vendas, produção, estoque e financeiro da Arts com Você.
 Regras oficiais: **Especificação Oficial v1.1** (documento do projeto).
 
-**Situação:** Etapa 0, Fundação: concluída ✅ (07/10/2026). Etapa 1, Configurações: em planejamento.
+**Situação:** Etapa 0, Fundação: concluída ✅ (07/10/2026). Etapa 1, Configurações: em andamento.
 
 Publicado em https://brucsa.github.io/arts-com-voce/
 
@@ -19,10 +19,13 @@ js/supabase.js          Conexão com o Supabase
 js/app.js               Login, perfis, layout e navegação
 js/menu.js              Mapa de telas, barra inferior, atalhos e etapas
 js/format.js            R$, datas brasileiras, fuso de São Paulo
+js/db.js                Mensagens de erro do banco em português
+js/ui/formulario.js     Formulários em folha (celular e computador)
 js/telas/               Uma tela por arquivo
 sql/00_fundacao.sql     Banco: perfis, papéis, auditoria, segurança
 sql/01_usuarios.sql     Liga as contas da Bruna e do Joca aos perfis
 sql/02_verificacao.sql  Confere a segurança do banco (só leitura)
+sql/03_configuracoes.sql  Etapa 1: parâmetros, canais, categorias, materiais
 ```
 
 ## Como colocar no ar (uma vez)

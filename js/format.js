@@ -68,19 +68,44 @@ export function competencia(dataISO = hojeISO()) {
  * Devolve NaN se não for um valor válido.
  */
 export function lerValor(texto) {
-  if (typeof texto === 'number') return arred2(texto);
-  let s = String(texto ?? '').replace(/R\$|\s/g, '').trim();
+  return lerDecimal(texto, 2);
+}
+
+/**
+ * Como lerValor, mas com a quantidade de casas decimais escolhida.
+ * Ex.: lerDecimal('0,95432', 5) → 0.95432
+ * Um ponto seguido de 3 dígitos só é lido como milhar quando a parte
+ * inteira não é zero ("1.000" → 1000; "0.954" → 0,954).
+ */
+export function lerDecimal(texto, casas = 2) {
+  if (typeof texto === 'number') return arredN(texto, casas);
+  let s = String(texto ?? '').replace(/R\$|%|\s/g, '').trim();
   if (!s) return NaN;
   const negativo = s.startsWith('-');
   if (negativo) s = s.slice(1);
   if (s.includes(',')) {
     s = s.replace(/\./g, '').replace(',', '.');
-  } else if ((s.match(/\./g) || []).length > 1 || /\.\d{3}$/.test(s)) {
+  } else if ((s.match(/\./g) || []).length > 1 || /^[1-9]\d{0,2}\.\d{3}$/.test(s)) {
     s = s.replace(/\./g, '');
   }
   if (!/^\d+(\.\d+)?$/.test(s)) return NaN;
-  const n = arred2(Number(s));
+  const n = arredN(Number(s), casas);
   return negativo ? -n : n;
+}
+
+/** Número para mostrar dentro de um campo: 0.95432 → "0,95432" */
+export function paraCampo(valor, casasMin = 0, casasMax = casasMin) {
+  if (valor === null || valor === undefined || valor === '') return '';
+  const n = Number(valor);
+  if (!Number.isFinite(n)) return '';
+  return n.toLocaleString('pt-BR', {
+    minimumFractionDigits: casasMin, maximumFractionDigits: casasMax, useGrouping: false,
+  });
+}
+
+function arredN(n, casas) {
+  const f = 10 ** casas;
+  return Math.round((Number(n) + Number.EPSILON) * f) / f;
 }
 
 /** Arredonda para centavos sem erro de ponto flutuante. */

@@ -5,6 +5,7 @@ import { telaLogin } from './telas/login.js';
 import { telaEmConstrucao } from './telas/em-construcao.js';
 import { telaInicio } from './telas/inicio.js';
 import { telaJocaPessoal } from './telas/joca-pessoal.js';
+import { telaConfiguracoes } from './telas/configuracoes.js';
 
 const app = document.getElementById('app');
 const estado = { perfil: null, demo: false };
@@ -193,6 +194,7 @@ function rotearAdmin() {
   const conteudo = app.querySelector('#conteudo');
 
   if (rota === 'inicio') telaInicio(conteudo, { perfil: estado.perfil, tela });
+  else if (rota === 'configuracoes') telaConfiguracoes(conteudo);
   else telaEmConstrucao(conteudo, { tela });
 
   conteudo.focus({ preventScroll: true });
