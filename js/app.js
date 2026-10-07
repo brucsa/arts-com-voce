@@ -9,12 +9,7 @@ import { telaJocaPessoal } from './telas/joca-pessoal.js';
 const app = document.getElementById('app');
 const estado = { perfil: null, demo: false };
 
-const LOGO = `
-  <svg class="logo-marca" viewBox="0 0 40 40" aria-hidden="true">
-    <rect x="6" y="25" width="28" height="7" rx="3.5" fill="var(--menta)"/>
-    <rect x="9" y="16.5" width="22" height="7" rx="3.5" fill="var(--ambar)"/>
-    <rect x="12" y="8" width="16" height="7" rx="3.5" fill="var(--coral)"/>
-  </svg>`;
+const LOGO = `<img class="logo-marca" src="img/flor.png" alt="" width="36" height="36">`;
 
 const marca = () => `
   <div class="marca">${LOGO}

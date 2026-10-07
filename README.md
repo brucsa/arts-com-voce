@@ -10,7 +10,8 @@ Regras oficiais: **Especificação Oficial v1.1** (documento do projeto).
 ```
 index.html              Página única do sistema
 css/app.css             Identidade visual e layout (celular e computador)
-img/icone.svg           Ícone da aba
+img/flor.png            Flor da Arts com Você (cabeçalho e login)
+img/favicon*, apple-touch-icon.png   Ícones da aba e da tela inicial do celular
 js/config.js            URL e chave pública do Supabase  ← você preenche
 js/supabase.js          Conexão com o Supabase
 js/app.js               Login, perfis, layout e navegação
