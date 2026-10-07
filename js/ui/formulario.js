@@ -1,11 +1,12 @@
 import { esc, lerDecimal, paraCampo } from '../format.js';
+import { cliqueForaDoDialogo } from './dialogo.js';
 
 /**
  * Abre um formulário em folha (de baixo no celular, centralizado no computador).
  *
  * campos: [{ nome, rotulo, tipo, obrigatorio, dica, placeholder, opcoes, casas,
  *            min, max, recarrega, rotulo(valores)?, oculto(valores)?, fixo(valores)? }]
- *   tipo: 'texto' | 'decimal' | 'inteiro' | 'select' | 'checkbox'
+ *   tipo: 'texto' | 'decimal' | 'inteiro' | 'select' | 'checkbox' | 'data' (maxData: 'AAAA-MM-DD')
  *   recarrega: redesenha os campos quando este muda (rótulos que dependem de outro campo)
  *   fixo(valores): devolve um valor obrigatório para o campo, que fica travado
  *   aoMudar(valores, anterior): ajusta outros valores quando este campo muda
@@ -63,8 +64,14 @@ export function abrirFormulario({ titulo, campos, valores = {}, textoSalvar = 'S
             ${c.opcoes.map(o => `<option value="${esc(o.valor)}" ${String(v ?? '') === String(o.valor) ? 'selected' : ''}>${esc(o.rotulo)}</option>`).join('')}
           </select>${dicaHtml}${erroHtml}</div>`;
       }
+      if (c.tipo === 'data') {
+        const max = typeof c.maxData === 'function' ? c.maxData(atuais) : c.maxData;
+        return `<div class="campo"><label for="${id}">${esc(rotulo)}${c.obrigatorio ? '' : ' <em>(opcional)</em>'}</label>
+          <input name="${c.nome}" id="${id}" type="date" value="${esc(v ?? '')}" ${max ? `max="${esc(max)}"` : ''} ${desc}>
+          ${dicaHtml}${erroHtml}</div>`;
+      }
       const numerico = c.tipo === 'decimal' || c.tipo === 'inteiro';
-      const mostrado = numerico && typeof v === 'number' ? paraCampo(v, 0, c.casas ?? 0) : (v ?? '');
+      const mostrado = numerico && typeof v === 'number' ? paraCampo(v, c.casasMin ?? 0, c.casas ?? 0) : (v ?? '');
       return `<div class="campo"><label for="${id}">${esc(rotulo)}${c.obrigatorio ? '' : ' <em>(opcional)</em>'}</label>
         <input name="${c.nome}" id="${id}" type="text" value="${esc(mostrado)}"
           ${numerico ? `inputmode="${c.tipo === 'inteiro' ? 'numeric' : 'decimal'}"` : ''}
@@ -102,6 +109,13 @@ export function abrirFormulario({ titulo, campos, valores = {}, textoSalvar = 'S
         saida[c.nome] = null;
         continue;
       }
+      if (c.tipo === 'data') {
+        const max = typeof c.maxData === 'function' ? c.maxData(atuais) : c.maxData;
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(texto)) { mostrarErro(c.nome, 'Escolha uma data válida.'); valido = false; continue; }
+        if (max && texto > max) { mostrarErro(c.nome, 'A data não pode ser no futuro.'); valido = false; continue; }
+        saida[c.nome] = texto;
+        continue;
+      }
       if (c.tipo === 'decimal' || c.tipo === 'inteiro') {
         const n = c.tipo === 'inteiro' ? (/^\d+$/.test(texto) ? Number(texto) : NaN) : lerDecimal(texto, c.casas ?? 2);
         if (!Number.isFinite(n)) { mostrarErro(c.nome, c.tipo === 'inteiro' ? 'Digite um número inteiro.' : 'Digite um número válido, como 12,5.'); valido = false; continue; }
@@ -128,7 +142,7 @@ export function abrirFormulario({ titulo, campos, valores = {}, textoSalvar = 'S
     if (c && c.recarrega) desenhar();
   });
   form.addEventListener('input', e => { mostrarErro(e.target.name, ''); erroGeral.hidden = true; });
-  dialog.addEventListener('click', e => { if (e.target === dialog || e.target.closest('[data-fechar]')) fechar(); });
+  dialog.addEventListener('click', e => { if (cliqueForaDoDialogo(e, dialog) || e.target.closest('[data-fechar]')) fechar(); });
   dialog.addEventListener('cancel', e => { e.preventDefault(); fechar(); });
 
   async function executar(acao, botao) {

@@ -88,4 +88,4 @@ export const ETAPAS = [
 export const ETAPA_ATUAL = 2;
 // Como a etapa atual aparece no Início: 'Em planejamento' até o escopo ser aprovado,
 // depois 'Em andamento'.
-export const ETAPA_ATUAL_ROTULO = 'Em planejamento';
+export const ETAPA_ATUAL_ROTULO = 'Em andamento';

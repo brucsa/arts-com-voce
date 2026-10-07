@@ -3,7 +3,7 @@
 Sistema web de vendas, produção, estoque e financeiro da Arts com Você.
 Regras oficiais: **Especificação Oficial v1.1** (documento do projeto).
 
-**Situação:** Etapa 0, Fundação: concluída ✅ (07/10/2026). Etapa 1, Configurações: concluída ✅ (07/10/2026). Etapa 2, Caixa e gastos: em planejamento.
+**Situação:** Etapa 0, Fundação: concluída ✅ (07/10/2026). Etapa 1, Configurações: concluída ✅ (07/10/2026). Etapa 2, Caixa e gastos: em andamento.
 
 Publicado em https://brucsa.github.io/arts-com-voce/
 
@@ -21,11 +21,14 @@ js/menu.js              Mapa de telas, barra inferior, atalhos e etapas
 js/format.js            R$, datas brasileiras, fuso de São Paulo
 js/db.js                Mensagens de erro do banco em português
 js/ui/formulario.js     Formulários em folha (celular e computador)
+js/ui/dialogo.js        Fechar folhas só ao clicar fora delas
+js/financeiro.js        Formas de pagamento, situações e meses
 js/telas/               Uma tela por arquivo
 sql/00_fundacao.sql     Banco: perfis, papéis, auditoria, segurança
 sql/01_usuarios.sql     Liga as contas da Bruna e do Joca aos perfis
 sql/02_verificacao.sql  Confere a segurança do banco (só leitura)
 sql/03_configuracoes.sql  Etapa 1: parâmetros, canais, categorias, materiais
+sql/04_caixa_gastos.sql   Etapa 2: gastos, pagamentos, caixa, aporte, retirada, estornos
 ```
 
 ## Como colocar no ar (uma vez)

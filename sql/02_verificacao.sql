@@ -150,6 +150,53 @@ with checagens (ordem, verificacao, passou, detalhe) as (
                                   false, true, '')))[1]::text = '0'
          end,
          case when to_regclass('public.categorias_lanc') is null then 'Rode sql/03_configuracoes.sql' else '' end
+  -- Etapa 2: Caixa e gastos --------------------------------------------
+  -- (as linhas abaixo só passam depois de rodar sql/04_caixa_gastos.sql)
+  union all
+  select 17, 'Caixa e gastos: só a Admin lê',
+         (select count(*) from pg_policies
+           where schemaname = 'public'
+             and tablename in ('lancamentos', 'pagamentos_lancamento', 'movimentos_caixa')
+             and cmd = 'SELECT' and qual like '%is_admin()%') = 3,
+         case when to_regclass('public.movimentos_caixa') is null then 'Rode sql/04_caixa_gastos.sql' else '' end
+
+  union all
+  select 18, 'Caixa e gastos: ninguém grava direto nas tabelas (só pelas funções)',
+         case when to_regclass('public.movimentos_caixa') is null then false
+              else not exists (
+                select 1 from unnest(array['public.lancamentos', 'public.pagamentos_lancamento', 'public.movimentos_caixa']) t
+                 where has_table_privilege('authenticated', t, 'INSERT')
+                    or has_table_privilege('authenticated', t, 'UPDATE')
+                    or has_table_privilege('authenticated', t, 'DELETE'))
+         end,
+         ''
+
+  union all
+  select 19, 'Funções de caixa: visitante não executa; internas fechadas',
+         case when to_regprocedure('public.registrar_gasto(date, text, uuid, numeric, public.forma_pagamento, text, text, boolean, date)') is null then false
+              else not has_function_privilege('anon', 'public.registrar_gasto(date, text, uuid, numeric, public.forma_pagamento, text, text, boolean, date)', 'EXECUTE')
+               and not has_function_privilege('anon', 'public.registrar_movimento(public.origem_caixa, date, numeric, text)', 'EXECUTE')
+               and not has_function_privilege('authenticated', 'public.inserir_pagamento(uuid, date, numeric)', 'EXECUTE')
+               and not has_function_privilege('authenticated', 'public.estornar_pagamento_interno(uuid, text, date)', 'EXECUTE')
+         end,
+         ''
+
+  union all
+  select 20, 'Caixa consistente: cada pagamento tem sua saída e cada estorno sua entrada',
+         case when to_regclass('public.movimentos_caixa') is null then false
+              else (xpath('/row/c/text()', query_to_xml($q$
+                select count(*) as c from public.pagamentos_lancamento p
+                 where (select count(*) from public.movimentos_caixa m
+                         where m.pagamento_id = p.id and m.origem = 'PAGAMENTO_GASTO' and m.valor = p.valor) <> 1
+                    or (p.status = 'CANCELADO' and not exists (
+                          select 1 from public.movimentos_caixa m join public.movimentos_caixa e on e.movimento_estornado_id = m.id
+                           where m.pagamento_id = p.id))
+                    or (select coalesce(sum(valor), 0) from public.pagamentos_lancamento x
+                         where x.lancamento_id = p.lancamento_id and x.status = 'ATIVO')
+                       > (select valor from public.lancamentos l where l.id = p.lancamento_id)
+              $q$, false, true, '')))[1]::text = '0'
+         end,
+         ''
 )
 select ordem as "#",
        verificacao as "Verificação",

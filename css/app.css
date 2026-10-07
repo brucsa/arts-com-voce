@@ -303,11 +303,41 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .campo-erro { font-weight: 700; font-size: .82rem; color: var(--erro); }
 .campo [aria-invalid="true"] { border-color: var(--erro); }
 .campo-check label { display: flex; align-items: flex-start; gap: 10px; font-weight: 600; cursor: pointer; }
-.campo-check input { width: 20px; height: 20px; margin: 2px 0 0; accent-color: var(--azul); flex: none; }
+.campo-check input { width: 20px; height: 20px; min-height: 0; padding: 0; margin: 2px 0 0; accent-color: var(--azul); flex: none; }
 .form-acoes { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 .form-acoes .espaco { flex: 1; }
 .botao-perigo { color: var(--erro); border-color: var(--erro-claro); }
 .botao-perigo:hover { background: var(--erro-claro); }
+
+/* ---------------------------------------------------------- Caixa e gastos (Etapa 2) */
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+.filtros { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); padding: 14px 16px; }
+.campo-compacto { gap: 4px; font-size: .8rem; }
+.campo-compacto input, .campo-compacto select {
+  min-height: 40px; padding: 0 10px; font-size: .95rem; font-weight: 400; width: 100%;
+  border: 1px solid var(--linha-forte); border-radius: var(--raio-p); background: var(--papel); font-family: inherit;
+}
+.metrica-neutra { background: var(--papel); border: 1px solid var(--linha); color: var(--tinta); }
+.metrica-caixa { background: var(--azul-claro); color: var(--azul-escuro); }
+.metrica-nota { font-size: .8rem; opacity: .85; }
+.valor-negativo { color: var(--erro); }
+.linha-direita { display: grid; justify-items: end; gap: 6px; flex: none; }
+.linha-gasto { align-items: flex-start; }
+.botao-pequeno { min-height: 34px !important; padding: 0 10px !important; font-size: .85rem; }
+.riscado { text-decoration: line-through; color: var(--tinta-3); }
+.valor-entrada { color: var(--menta-escuro); }
+.valor-saida { color: var(--tinta); }
+.acoes-caixa { display: flex; flex-wrap: wrap; gap: 8px; }
+.itens-pagamento { border: 0; padding: 0; margin: 0; display: grid; gap: 8px; }
+.itens-pagamento legend { font-weight: 700; font-size: .9rem; margin-bottom: 6px; }
+.item-pagamento { display: flex; gap: 10px; align-items: center; justify-content: space-between; padding: 10px; border: 1px solid var(--linha); border-radius: var(--raio-p); }
+.item-check { display: flex; gap: 10px; align-items: flex-start; cursor: pointer; min-width: 0; }
+.item-check input { width: 20px; height: 20px; margin-top: 2px; accent-color: var(--azul); flex: none; }
+.item-check span { display: grid; gap: 2px; min-width: 0; }
+.item-check small { color: var(--tinta-2); font-size: .8rem; }
+.item-valor { width: 110px; min-height: 40px; padding: 0 10px; border: 1px solid var(--linha-forte); border-radius: var(--raio-p); text-align: right; font-size: 1rem; flex: none; }
+.item-valor:disabled { background: var(--creme); color: var(--tinta-3); }
+.total-pagamento { text-align: right; }
 
 /* ---------------------------------------------------------- Joca */
 .shell-joca { min-height: 100dvh; }
@@ -340,3 +370,11 @@ button, input, select, textarea { font: inherit; color: inherit; }
   .abas { margin: 0; padding: 0; flex-wrap: wrap; }
 }
 .folha { overflow-y: auto; }
+.campo input[type="date"] { font-family: inherit; }
+/* Celular: em linhas com valor e ações, as ações descem para baixo do texto */
+@media (max-width: 599px) {
+  .linha:has(.linha-direita) { flex-wrap: wrap; }
+  .linha:has(.linha-direita) .linha-texto { flex: 1 1 100%; }
+  .linha-direita { width: 100%; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+  .metrica-valor { font-size: clamp(1.2rem, 6vw, 1.6rem); }
+}

@@ -1,4 +1,5 @@
 import { configurado, supabase, problemaConfig } from './supabase.js';
+import { cliqueForaDoDialogo } from './ui/dialogo.js';
 import { GRUPOS, TELAS, BARRA_INFERIOR, ATALHOS } from './menu.js';
 import { esc } from './format.js';
 import { telaLogin } from './telas/login.js';
@@ -6,6 +7,8 @@ import { telaEmConstrucao } from './telas/em-construcao.js';
 import { telaInicio } from './telas/inicio.js';
 import { telaJocaPessoal } from './telas/joca-pessoal.js';
 import { telaConfiguracoes } from './telas/configuracoes.js';
+import { telaGastos } from './telas/gastos.js';
+import { telaCaixa } from './telas/caixa.js';
 
 const app = document.getElementById('app');
 const estado = { perfil: null, demo: false };
@@ -170,7 +173,7 @@ function montarAdmin() {
     b.addEventListener('click', () => app.querySelector('#folha-menu').showModal()));
   app.querySelectorAll('dialog').forEach(d => {
     d.addEventListener('click', e => {
-      if (e.target === d || e.target.closest('[data-fechar]') || e.target.closest('a')) d.close();
+      if (cliqueForaDoDialogo(e, d) || e.target.closest('[data-fechar]') || e.target.closest('a')) d.close();
     });
   });
 
@@ -195,6 +198,8 @@ function rotearAdmin() {
 
   if (rota === 'inicio') telaInicio(conteudo, { perfil: estado.perfil, tela });
   else if (rota === 'configuracoes') telaConfiguracoes(conteudo);
+  else if (rota === 'gastos') telaGastos(conteudo);
+  else if (rota === 'caixa') telaCaixa(conteudo);
   else telaEmConstrucao(conteudo, { tela });
 
   conteudo.focus({ preventScroll: true });
