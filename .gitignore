@@ -1,0 +1,10 @@
+# Nunca enviar credenciais
+.env
+.env.*
+*.local
+*.pem
+*.key
+segredos*
+# Sistema
+.DS_Store
+Thumbs.db
