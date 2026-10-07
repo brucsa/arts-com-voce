@@ -1,11 +1,11 @@
 import { esc, dataBR, hojeISO } from '../format.js';
-import { ETAPAS, ETAPA_ATUAL } from '../menu.js';
+import { ETAPAS, ETAPA_ATUAL, ETAPA_ATUAL_ROTULO } from '../menu.js';
 
 // Até a Etapa 10 (Dashboard), o Início mostra o andamento do projeto.
 export function telaInicio(el, { perfil }) {
   const etapas = ETAPAS.map((nome, i) => {
     const situacao = i < ETAPA_ATUAL ? 'feita' : i === ETAPA_ATUAL ? 'atual' : 'futura';
-    const rotulo = { feita: 'Concluída', atual: 'Em andamento', futura: '' }[situacao];
+    const rotulo = { feita: 'Concluída', atual: ETAPA_ATUAL_ROTULO, futura: '' }[situacao];
     return `<li class="etapa etapa-${situacao}">
       <span class="etapa-num">${i}</span>
       <span class="etapa-nome">${esc(nome)}</span>

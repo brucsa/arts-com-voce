@@ -3,7 +3,9 @@
 Sistema web de vendas, produção, estoque e financeiro da Arts com Você.
 Regras oficiais: **Especificação Oficial v1.1** (documento do projeto).
 
-**Situação:** Etapa 0, Fundação (aguardando checkpoint).
+**Situação:** Etapa 0, Fundação: concluída ✅ (07/10/2026). Etapa 1, Configurações: em planejamento.
+
+Publicado em https://brucsa.github.io/arts-com-voce/
 
 ## Estrutura
 
