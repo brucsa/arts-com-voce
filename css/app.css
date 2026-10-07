@@ -1,7 +1,7 @@
 /* =====================================================================
    Arts com Você — identidade visual
-   Cores inspiradas nas camadas de uma impressão 3D:
-   coral (topo), âmbar (meio), menta (base), sobre papel creme.
+   Azul oficial do logo (#007FFC) como cor principal de interface,
+   com âmbar e menta de apoio, sobre papel creme.
    ===================================================================== */
 
 :root {
@@ -13,9 +13,9 @@
   --linha: #ECE3D8;
   --linha-forte: #DCCFBF;
 
-  --coral: #E2674A;
-  --coral-escuro: #B9472D;
-  --coral-claro: #FCE8E2;
+  --azul: #007FFC;         /* azul oficial da Arts com Você */
+  --azul-escuro: #0062C4;  /* textos e hover sobre fundo claro */
+  --azul-claro: #E3F0FF;   /* fundo de item ativo */
   --ambar: #F2B544;
   --ambar-claro: #FDF2DA;
   --ambar-escuro: #8A5A06;
@@ -50,7 +50,7 @@ h1, h2, h3 { margin: 0; line-height: 1.25; font-weight: 800; }
 h2 { font-size: 1.375rem; }
 h3 { font-size: 1.05rem; margin-bottom: .75rem; }
 p { margin: 0; }
-a { color: var(--coral-escuro); }
+a { color: var(--azul-escuro); }
 button, input, select, textarea { font: inherit; color: inherit; }
 :focus-visible { outline: 3px solid var(--ambar); outline-offset: 2px; border-radius: 6px; }
 
@@ -70,15 +70,15 @@ button, input, select, textarea { font: inherit; color: inherit; }
   background: var(--papel); font-weight: 700; cursor: pointer;
 }
 .botao:hover { background: var(--creme); }
-.botao-primario { background: var(--coral); border-color: var(--coral); color: #fff; }
-.botao-primario:hover { background: var(--coral-escuro); border-color: var(--coral-escuro); }
+.botao-primario { background: var(--azul); border-color: var(--azul); color: #fff; }
+.botao-primario:hover { background: var(--azul-escuro); border-color: var(--azul-escuro); }
 .botao:disabled { opacity: .6; cursor: progress; }
 .botao-largo { width: 100%; }
 .botao-texto {
   background: none; border: 0; padding: 8px; cursor: pointer;
   color: var(--tinta-2); font-weight: 700;
 }
-.botao-texto:hover { color: var(--coral-escuro); }
+.botao-texto:hover { color: var(--azul-escuro); }
 .botao-icone {
   width: 40px; height: 40px; border: 0; border-radius: 50%;
   background: var(--creme); cursor: pointer; font-size: 20px;
@@ -149,10 +149,10 @@ button, input, select, textarea { font: inherit; color: inherit; }
   color: var(--tinta-2); font-size: .7rem; font-weight: 700;
 }
 .barra-item i { font-size: 22px; }
-.barra-item.ativo { color: var(--coral-escuro); }
+.barra-item.ativo { color: var(--azul-escuro); }
 .barra-destaque i {
   width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center;
-  background: var(--coral); color: #fff; margin-top: -18px; box-shadow: 0 4px 12px rgba(226, 103, 74, .35);
+  background: var(--azul); color: #fff; margin-top: -18px; box-shadow: 0 4px 12px rgba(0, 127, 252, .35);
 }
 .barra-destaque span { color: var(--tinta-2); }
 
@@ -169,8 +169,8 @@ button, input, select, textarea { font: inherit; color: inherit; }
 }
 .nav-item i { font-size: 20px; color: var(--tinta-2); }
 .nav-item:hover { background: var(--creme); }
-.nav-item.ativo { background: var(--coral-claro); color: var(--coral-escuro); font-weight: 800; }
-.nav-item.ativo i { color: var(--coral-escuro); }
+.nav-item.ativo { background: var(--azul-claro); color: var(--azul-escuro); font-weight: 800; }
+.nav-item.ativo i { color: var(--azul-escuro); }
 
 .lateral-rodape {
   display: flex; align-items: center; justify-content: space-between;
@@ -194,7 +194,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
   border: 1px solid var(--linha); border-radius: var(--raio);
   text-decoration: none; color: var(--tinta); font-weight: 700;
 }
-.atalho i { font-size: 24px; color: var(--coral); }
+.atalho i { font-size: 24px; color: var(--azul); }
 .atalho:hover { background: var(--creme); }
 
 /* ---------------------------------------------------------- telas */
@@ -202,7 +202,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .boas-vindas h2 { font-size: 1.6rem; }
 
 .em-construcao h2 { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
-.em-construcao h2 i { color: var(--coral); }
+.em-construcao h2 i { color: var(--azul); }
 .lista-check { margin: 12px 0 0; padding: 0; list-style: none; display: grid; gap: 8px; }
 .lista-check li { display: flex; gap: 8px; }
 .lista-check li::before { content: '◆'; color: var(--ambar); font-size: .7rem; line-height: 1.5rem; }
