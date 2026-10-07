@@ -85,7 +85,7 @@ export const ETAPAS = [
   'Produção', 'Vendas e pedidos', 'Recebimentos', 'Joca ⭐', 'Cancelamentos e devoluções',
   'Dashboard', 'Canais e relatórios', 'Fechamento mensal', 'Exportação e polimento',
 ];
-export const ETAPA_ATUAL = 1;
+export const ETAPA_ATUAL = 2;
 // Como a etapa atual aparece no Início: 'Em planejamento' até o escopo ser aprovado,
 // depois 'Em andamento'.
-export const ETAPA_ATUAL_ROTULO = 'Em andamento';
+export const ETAPA_ATUAL_ROTULO = 'Em planejamento';
