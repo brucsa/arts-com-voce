@@ -339,6 +339,25 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .item-valor:disabled { background: var(--creme); color: var(--tinta-3); }
 .total-pagamento { text-align: right; }
 
+/* ---------------------------------------------------------- Estoque e compras (Etapa 3) */
+.botoes-topo { display: flex; flex-wrap: wrap; gap: 8px; }
+.valor-alerta { color: var(--ambar-escuro); }
+.folha-larga { max-width: 100%; }
+.grade-form { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+.itens-compra { border: 1px solid var(--linha); border-radius: var(--raio); padding: 12px 14px 14px; margin: 0; display: grid; gap: 10px; min-width: 0; }
+.itens-compra legend { font-weight: 800; padding: 0 6px; }
+.item-compra {
+  display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  padding: 12px; border-radius: var(--raio-p); background: var(--creme);
+}
+.item-compra .campo input, .item-compra .campo select { min-width: 0; width: 100%; }
+.item-compra-rodape { grid-column: 1 / -1; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.resumo-compra { display: grid; gap: 4px; padding: 12px 14px; border-radius: var(--raio-p); background: var(--azul-claro); color: var(--azul-escuro); }
+.resumo-compra div { display: flex; justify-content: space-between; gap: 12px; }
+.resumo-compra .resumo-total { font-size: 1.1rem; border-top: 1px solid rgba(0, 98, 196, .2); padding-top: 6px; margin-top: 2px; }
+.resumo-compra .resumo-outros { color: var(--tinta-2); font-size: .9rem; }
+@media (min-width: 900px) { .folha-larga { width: min(760px, calc(100% - 32px)); } }
+
 /* ---------------------------------------------------------- Joca */
 .shell-joca { min-height: 100dvh; }
 .topo-joca { justify-content: space-between; }

@@ -326,7 +326,12 @@ async function categorias(painel, recarregar) {
 
 async function materiais(painel, recarregar) {
   const sb = await supabase();
-  const lista = await sb.from('materiais').select('*').order('tipo').order('variacao').then(ok);
+  const [lista, movs] = await Promise.all([
+    sb.from('materiais').select('*').order('tipo').order('variacao').then(ok),
+    sb.from('vw_estoque').select('material_id, tem_movimento').then(ok),
+  ]);
+  // Categoria e unidade travam no primeiro movimento de estoque (R41, R55).
+  const comMovimento = new Set(movs.filter(x => x.tem_movimento).map(x => x.material_id));
   const unidadeCurta = u => u;
 
   painel.innerHTML = `
@@ -347,7 +352,7 @@ async function materiais(painel, recarregar) {
                 <span class="texto-secundario">Em ${unidadeCurta(m.unidade)}${m.estoque_minimo !== null ? ` · alerta abaixo de ${paraCampo(m.estoque_minimo, 0, 3)} ${m.unidade}` : ' · sem alerta de estoque'}</span>
               </div>
               <div class="linha-acoes"><button class="botao" data-editar="${m.id}">Editar</button></div>
-            </li>`).join('')}</ul>` : `<p class="texto-secundario vazio">Nenhum ${cat.rotulo.toLowerCase()} cadastrado.</p>`}
+            </li>`).join('')}</ul>` : `<p class="texto-secundario vazio">${{ FILAMENTO: 'Nenhum filamento cadastrado', EMBALAGEM: 'Nenhuma embalagem cadastrada', INSUMO: 'Nenhum insumo cadastrado' }[cat.valor]}.</p>`}
         </div>`;
       }).join('')}
     </section>`;
@@ -359,15 +364,18 @@ async function materiais(painel, recarregar) {
       { nome: 'categoria', rotulo: 'Categoria', tipo: 'select', obrigatorio: true, recarrega: true,
         opcoes: CATEGORIAS_MATERIAL.map(c => ({ valor: c.valor, rotulo: c.rotulo })),
         // Saindo de filamento (sempre em g), embalagens e insumos começam em unidades.
-        aoMudar: (v, anterior) => { if (anterior === 'FILAMENTO' && v.categoria !== 'FILAMENTO') v.unidade = 'un'; } },
+        aoMudar: (v, anterior) => { if (anterior === 'FILAMENTO' && v.categoria !== 'FILAMENTO') v.unidade = 'un'; },
+        fixo: () => (m && comMovimento.has(m.id) ? m.categoria : undefined),
+        dica: () => (m && comMovimento.has(m.id) ? 'Travada: este material já tem movimento de estoque.' : undefined) },
       { nome: 'tipo', rotulo: v => CAT[v.categoria].tipo, tipo: 'texto', obrigatorio: true,
         placeholder: v => CAT[v.categoria].tipoEx },
       { nome: 'variacao', rotulo: v => CAT[v.categoria].variacao, tipo: 'texto',
         placeholder: v => CAT[v.categoria].variacaoEx },
       { nome: 'unidade', rotulo: 'Unidade de medida', tipo: 'select', obrigatorio: true, recarrega: true,
         opcoes: UNIDADES,
-        fixo: v => (v.categoria === 'FILAMENTO' ? 'g' : undefined),
-        dica: v => (v.categoria === 'FILAMENTO' ? 'Filamento é sempre controlado em gramas.' : 'Unidade usada no estoque e na ficha técnica deste material.') },
+        fixo: v => (m && comMovimento.has(m.id) ? m.unidade : (v.categoria === 'FILAMENTO' ? 'g' : undefined)),
+        dica: v => (m && comMovimento.has(m.id) ? 'Travada: este material já tem movimento de estoque.'
+          : (v.categoria === 'FILAMENTO' ? 'Filamento é sempre controlado em gramas.' : 'Unidade usada no estoque e na ficha técnica deste material.')) },
       { nome: 'estoque_minimo', rotulo: v => `Avisar quando o estoque ficar abaixo de (${v.categoria === 'FILAMENTO' ? 'g' : (v.unidade || 'un')})`,
         tipo: 'decimal', casas: 3, min: 0, mensagemFaixa: 'Use zero ou um valor positivo.', placeholder: '200' },
       ...(m ? [{ nome: 'ativo', rotulo: 'Ativo', tipo: 'checkbox', dica: 'Inativo some das listas de escolha, mas continua no histórico.' }] : []),

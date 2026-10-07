@@ -197,6 +197,57 @@ with checagens (ordem, verificacao, passou, detalhe) as (
               $q$, false, true, '')))[1]::text = '0'
          end,
          ''
+  -- Etapa 3: Estoque de materiais -------------------------------------
+  -- (as linhas abaixo só passam depois de rodar sql/05_estoque.sql)
+  union all
+  select 21, 'Estoque: só a Admin lê',
+         (select count(*) from pg_policies
+           where schemaname = 'public'
+             and tablename in ('compras_estoque', 'lotes_material', 'movimentos_estoque', 'saldos_material')
+             and cmd = 'SELECT' and qual like '%is_admin()%') = 4,
+         case when to_regclass('public.saldos_material') is null then 'Rode sql/05_estoque.sql' else '' end
+
+  union all
+  select 22, 'Estoque: ninguém grava direto nas tabelas (só pelas funções)',
+         case when to_regclass('public.saldos_material') is null then false
+              else not exists (
+                select 1 from unnest(array['public.compras_estoque', 'public.lotes_material',
+                                           'public.movimentos_estoque', 'public.saldos_material']) t
+                 where has_table_privilege('authenticated', t, 'INSERT')
+                    or has_table_privilege('authenticated', t, 'UPDATE')
+                    or has_table_privilege('authenticated', t, 'DELETE'))
+               and not has_function_privilege('authenticated',
+                     'public.movimentar_estoque(uuid, date, public.tipo_movimento, public.motivo_estoque, numeric, numeric, uuid, uuid, text)', 'EXECUTE')
+         end,
+         ''
+
+  union all
+  select 23, 'Estoque consistente: saldo de cada material = soma dos seus movimentos',
+         case when to_regclass('public.saldos_material') is null then false
+              else (xpath('/row/c/text()', query_to_xml($q$
+                select count(*) as c from public.materiais m
+                  left join public.saldos_material s on s.material_id = m.id
+                  left join (select material_id,
+                                    sum(case when tipo = 'ENTRADA' then quantidade else -quantidade end) as q,
+                                    sum(case when tipo = 'ENTRADA' then valor else -valor end) as v
+                               from public.movimentos_estoque group by material_id) x on x.material_id = m.id
+                 where coalesce(s.quantidade, 0) <> coalesce(x.q, 0) or coalesce(s.valor, 0) <> coalesce(x.v, 0)
+              $q$, false, true, '')))[1]::text = '0'
+         end,
+         ''
+
+  union all
+  select 24, 'Compras consistentes: toda compra de estoque tem itens e o valor bate com eles',
+         case when to_regclass('public.lotes_material') is null then false
+              else (xpath('/row/c/text()', query_to_xml($q$
+                select count(*) as c from public.lancamentos l
+                  join public.categorias_lanc c on c.id = l.categoria_id
+                 where c.natureza = 'ESTOQUE'
+                   and (not exists (select 1 from public.compras_estoque ce where ce.lancamento_id = l.id)
+                        or l.valor <> (select coalesce(sum(custo_total), 0) from public.lotes_material lm where lm.lancamento_id = l.id))
+              $q$, false, true, '')))[1]::text = '0'
+         end,
+         ''
 )
 select ordem as "#",
        verificacao as "Verificação",
