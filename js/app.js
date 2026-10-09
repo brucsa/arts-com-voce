@@ -10,6 +10,7 @@ import { telaConfiguracoes } from './telas/configuracoes.js';
 import { telaGastos } from './telas/gastos.js';
 import { telaCaixa } from './telas/caixa.js';
 import { telaEstoque } from './telas/estoque.js';
+import { telaShopee } from './telas/shopee.js';
 
 const app = document.getElementById('app');
 const estado = { perfil: null, demo: false };
@@ -202,6 +203,7 @@ function rotearAdmin() {
   else if (rota === 'gastos') telaGastos(conteudo);
   else if (rota === 'caixa') telaCaixa(conteudo);
   else if (rota === 'estoque') telaEstoque(conteudo);
+  else if (rota === 'shopee') telaShopee(conteudo);
   else telaEmConstrucao(conteudo, { tela });
 
   conteudo.focus({ preventScroll: true });

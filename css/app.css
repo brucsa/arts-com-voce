@@ -397,3 +397,19 @@ button, input, select, textarea { font: inherit; color: inherit; }
   .linha-direita { width: 100%; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
   .metrica-valor { font-size: clamp(1.2rem, 6vw, 1.6rem); }
 }
+
+/* ---------------------------------------------------------- Pedidos da Shopee (módulo) */
+.nao-informado { color: var(--tinta-3); font-weight: 400; font-style: italic; }
+.metrica-valor.metrica-nao-informado { font-size: 1.15rem; font-style: italic; opacity: .75; }
+.nota-topo { font-size: .875rem; margin: -4px 0 12px; }
+label.botao { cursor: pointer; }
+.aviso-atencao { background: var(--ambar-claro); color: var(--ambar-escuro); }
+.lista-aviso { margin: 6px 0 0; padding-left: 18px; display: grid; gap: 4px; }
+.grade-previa { margin: 12px 0; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); }
+.grade-previa .metrica { padding: 12px; }
+.grade-previa .metrica-valor { font-size: 1.3rem; }
+.folha .aviso { margin-bottom: 10px; }
+.form-acoes-folha { justify-content: flex-end; margin-top: 12px; }
+.detalhe-titulo { font-size: 1rem; margin: 16px 0 4px; }
+.linha-dado span { color: var(--tinta-2); }
+.linha-dado strong { text-align: right; overflow-wrap: anywhere; }

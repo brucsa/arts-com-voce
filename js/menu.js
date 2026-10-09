@@ -16,6 +16,9 @@ export const GRUPOS = [
         itens: ['Lista com filtros por período, canal e status', 'Nova venda com lucro previsto ao vivo', 'Itens do catálogo ou personalizados'] },
       { rota: 'pedidos', titulo: 'Pedidos', icone: 'ti-truck-delivery', etapa: 6,
         itens: ['Quadro por status do pedido', 'Vínculo com produção por item', 'Embalagens em Pronto para envio'] },
+      // Módulo independente (sem etapa): só consulta, não mexe em vendas, Caixa, estoque nem comissão.
+      { rota: 'shopee', titulo: 'Pedidos da Shopee', icone: 'ti-brand-shopee', modulo: true,
+        itens: ['Importar a planilha da Shopee com prévia', 'Status, rastreio, valores e taxas', 'Sem duplicar pedidos'] },
       { rota: 'producao', titulo: 'Produção', icone: 'ti-printer', etapa: 5,
         itens: ['Produção OK ou falha', 'Consumo por material, cor e purga', 'Peças prontas e perdas com motivo'] },
       { rota: 'produtos', titulo: 'Produtos', icone: 'ti-box', etapa: 4,

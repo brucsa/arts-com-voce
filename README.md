@@ -113,3 +113,23 @@ Use `?demo=joca` no endereço para ver a tela do Joca.
   gatilho `tg_updated_at`, gatilho `tg_auditoria`, RLS ligado.
 - Dinheiro sempre em `numeric(12,2)`.
 - Nada financeiro é apagado: cancelar ou estornar.
+
+## Módulo "Pedidos da Shopee" (consulta)
+
+Importa a planilha que a Shopee exporta (Meus Pedidos › Exportar) para acompanhar pedidos,
+valores, descontos, taxas, status e rastreio. **Só consulta:** não cria vendas e não mexe no
+Caixa, no estoque nem na comissão do Joca. Não guarda dados pessoais do comprador. Só a Admin vê.
+Relatório completo (regras, testes e limitações): `docs/shopee-relatorio.md`.
+
+Arquivos: `sql/shopee_pedidos.sql` (instalação), `sql/shopee_verificacao.sql` (conferência),
+`sql/manutencao/shopee_retrato.sql` (retrato só de leitura), `sql/manutencao/shopee_desinstalar.sql`,
+`js/planilha-xlsx.js`, `js/shopee-planilha.js`, `js/telas/shopee.js`.
+
+Instalação (uma vez, só com autorização):
+1. SQL Editor → rodar `sql/manutencao/shopee_retrato.sql` e salvar o resultado (Export → CSV).
+2. Rodar `sql/shopee_pedidos.sql` (tudo ou nada).
+3. Rodar `sql/shopee_verificacao.sql` (10 linhas OK) e `sql/02_verificacao.sql` (24 linhas OK).
+4. Rodar o retrato de novo: tudo igual ao passo 1, exceto o bloco "N. Objetos novos".
+
+Desinstalação (só com autorização): `sql/manutencao/shopee_desinstalar.sql` remove apenas as
+3 tabelas e a função do módulo. Depois dela, o retrato volta a ser igual ao do passo 1.
