@@ -413,3 +413,15 @@ label.botao { cursor: pointer; }
 .detalhe-titulo { font-size: 1rem; margin: 16px 0 4px; }
 .linha-dado span { color: var(--tinta-2); }
 .linha-dado strong { text-align: right; overflow-wrap: anywhere; }
+
+/* ---------------------------------------------------------- Essencial (E1): atalhos e abas */
+button.atalho { background: var(--papel); font: inherit; font-weight: 700; text-align: left; cursor: pointer; }
+.folha .atalhos-aviso { margin: 12px 0 0; }
+.abas { display: flex; gap: 4px; padding: 4px; margin-bottom: 16px; width: fit-content; max-width: 100%;
+  background: var(--papel); border: 1px solid var(--linha); border-radius: var(--raio); }
+.aba { padding: 8px 18px; border: 0; border-radius: var(--raio-p); background: transparent;
+  font: inherit; font-weight: 700; color: var(--tinta-2); cursor: pointer; }
+.aba:hover { color: var(--azul-escuro); }
+.aba[aria-selected="true"] { background: var(--azul-claro); color: var(--azul-escuro); }
+/* Com só 6 itens no menu, os itens não se esticam para ocupar a altura da lateral. */
+.lateral .nav, .nav-folha { align-content: start; }

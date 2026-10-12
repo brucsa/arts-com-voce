@@ -7,6 +7,8 @@ import { ok } from '../db.js';
 import { esc, brl, dataBR, hojeISO, lerValor, paraCampo } from '../format.js';
 import { abrirFormulario } from '../ui/formulario.js';
 import { ORIGEM, ROTULO_FORMA, intervaloMes, mesAtual, nomeMes } from '../financeiro.js';
+import { abrirNovoGasto, oferecerGastoDosOutros } from './gastos.js';
+import { abrirNovaCompra } from './compra.js';
 
 let mesExtrato = null;
 
@@ -65,6 +67,8 @@ async function desenhar(area, recarregar) {
     </div>
 
     <div class="acoes-caixa">
+      <button class="botao" data-novo-gasto><i class="ti ti-shopping-cart" aria-hidden="true"></i> Novo gasto</button>
+      <button class="botao" data-nova-compra><i class="ti ti-package" aria-hidden="true"></i> Nova compra de material</button>
       <button class="botao" data-aporte><i class="ti ti-arrow-down-circle" aria-hidden="true"></i> Aporte</button>
       <button class="botao" data-retirada><i class="ti ti-arrow-up-circle" aria-hidden="true"></i> Retirada</button>
       <button class="botao botao-primario" data-pagar><i class="ti ti-credit-card-pay" aria-hidden="true"></i> Registrar pagamento</button>
@@ -134,6 +138,23 @@ async function desenhar(area, recarregar) {
       await recarregar();
       avisar(origem === 'APORTE' ? 'Aporte registrado.' : 'Retirada registrada.');
     },
+  });
+
+  // Essencial (E1): os mesmos formulários de Gastos e Estoque, abertos daqui.
+  area.querySelector('[data-novo-gasto]').addEventListener('click', () => {
+    abrirNovoGasto({}, async v => {
+      await recarregar();
+      avisar(v.pago ? 'Gasto registrado e pago.' : 'Gasto registrado como A pagar.');
+    });
+  });
+  area.querySelector('[data-nova-compra]').addEventListener('click', () => {
+    abrirNovaCompra({
+      async aoConcluir(resultado, cab) {
+        await recarregar();
+        avisar(cab.pago ? 'Compra registrada e paga. O estoque já foi atualizado.' : 'Compra registrada como A pagar. O estoque já foi atualizado.');
+        await oferecerGastoDosOutros(resultado, cab, async () => { await recarregar(); avisar('Compra e gasto dos outros itens registrados.'); });
+      },
+    });
   });
 
   area.querySelector('[data-aporte]').addEventListener('click', () => formMovimento('APORTE'));

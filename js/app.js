@@ -1,6 +1,6 @@
 import { configurado, supabase, problemaConfig } from './supabase.js';
 import { cliqueForaDoDialogo } from './ui/dialogo.js';
-import { GRUPOS, TELAS, BARRA_INFERIOR, ATALHOS } from './menu.js';
+import { TELAS, BARRA_INFERIOR, ATALHOS, ROTA_INICIAL, MENU_PRINCIPAL, MENU_MAIS } from './menu.js';
 import { esc } from './format.js';
 import { telaLogin } from './telas/login.js';
 import { telaEmConstrucao } from './telas/em-construcao.js';
@@ -11,6 +11,9 @@ import { telaGastos } from './telas/gastos.js';
 import { telaCaixa } from './telas/caixa.js';
 import { telaEstoque } from './telas/estoque.js';
 import { telaShopee } from './telas/shopee.js';
+import { telaPedidos } from './telas/pedidos.js';
+import { abrirNovoGasto, oferecerGastoDosOutros } from './telas/gastos.js';
+import { abrirNovaCompra } from './telas/compra.js';
 
 const app = document.getElementById('app');
 const estado = { perfil: null, demo: false };
@@ -106,11 +109,15 @@ function linkTela(t) {
 }
 
 function montarAdmin() {
-  const nav = GRUPOS.map(g => `
+  // Essencial: três áreas principais e o grupo "Mais".
+  const nav = `
     <div class="nav-grupo">
-      <p class="nav-grupo-nome">${esc(g.nome)}</p>
-      ${g.telas.map(linkTela).join('')}
-    </div>`).join('');
+      ${MENU_PRINCIPAL.map(r => linkTela(TELAS[r])).join('')}
+    </div>
+    <div class="nav-grupo">
+      <p class="nav-grupo-nome">Mais</p>
+      ${MENU_MAIS.map(r => linkTela(TELAS[r])).join('')}
+    </div>`;
 
   const barra = BARRA_INFERIOR.map(b => b.rota
     ? `<a class="barra-item" href="#/${b.rota}" data-rota="${b.rota}">
@@ -151,9 +158,10 @@ function montarAdmin() {
         <button class="botao-icone" data-fechar aria-label="Fechar"><i class="ti ti-x"></i></button>
       </div>
       <div class="atalhos">
-        ${ATALHOS.map(a => `<a class="atalho" href="#/${a.rota}" data-fechar>
-          <i class="ti ${a.icone}" aria-hidden="true"></i><span>${a.titulo}</span></a>`).join('')}
+        ${ATALHOS.map(a => `<button type="button" class="atalho" data-atalho="${a.acao}">
+          <i class="ti ${a.icone}" aria-hidden="true"></i><span>${a.titulo}</span></button>`).join('')}
       </div>
+      <p class="aviso aviso-atencao atalhos-aviso" role="status" hidden data-atalhos-aviso></p>
     </dialog>
 
     <dialog class="folha" id="folha-menu" aria-labelledby="folha-menu-titulo">
@@ -170,7 +178,12 @@ function montarAdmin() {
 
   app.querySelectorAll('[data-sair]').forEach(b => b.addEventListener('click', sair));
   app.querySelectorAll('[data-acao="atalhos"]').forEach(b =>
-    b.addEventListener('click', () => app.querySelector('#folha-atalhos').showModal()));
+    b.addEventListener('click', () => {
+      app.querySelector('[data-atalhos-aviso]').hidden = true;
+      app.querySelector('#folha-atalhos').showModal();
+    }));
+  app.querySelectorAll('[data-atalho]').forEach(b =>
+    b.addEventListener('click', () => usarAtalho(b.dataset.atalho)));
   app.querySelectorAll('[data-acao="menu"]').forEach(b =>
     b.addEventListener('click', () => app.querySelector('#folha-menu').showModal()));
   app.querySelectorAll('dialog').forEach(d => {
@@ -183,10 +196,39 @@ function montarAdmin() {
   rotearAdmin();
 }
 
+// Botão ＋: abre os formulários que já existem (os mesmos de Gastos e Estoque).
+// Depois de salvar, a tela aberta é redesenhada com os dados novos.
+async function usarAtalho(acao) {
+  const folha = app.querySelector('#folha-atalhos');
+  const aviso = app.querySelector('[data-atalhos-aviso]');
+  const avisar = texto => { aviso.textContent = texto; aviso.hidden = false; };
+
+  if (acao === 'novo-pedido') {
+    return avisar('O cadastro de novos pedidos estará disponível na próxima etapa (E2). Por enquanto, nada é cadastrado aqui.');
+  }
+  if (!configurado) return avisar('Este formulário precisa do Supabase configurado.');
+
+  folha.close();
+  try {
+    if (acao === 'novo-gasto') {
+      await abrirNovoGasto({}, async () => rotearAdmin());
+    } else if (acao === 'nova-compra') {
+      await abrirNovaCompra({
+        async aoConcluir(resultado, cab) {
+          rotearAdmin();
+          await oferecerGastoDosOutros(resultado, cab, async () => rotearAdmin());
+        },
+      });
+    }
+  } catch (e) {
+    window.alert(e.message);
+  }
+}
+
 function rotearAdmin() {
-  const rota = location.hash.replace(/^#\/?/, '') || 'inicio';
+  const rota = location.hash.replace(/^#\/?/, '') || ROTA_INICIAL;
   const tela = TELAS[rota];
-  if (!tela) return location.replace('#/inicio');
+  if (!tela) return location.replace(`#/${ROTA_INICIAL}`);
 
   app.querySelectorAll('[data-rota]').forEach(a => {
     const ativo = a.dataset.rota === rota;
@@ -199,6 +241,7 @@ function rotearAdmin() {
   const conteudo = app.querySelector('#conteudo');
 
   if (rota === 'inicio') telaInicio(conteudo, { perfil: estado.perfil, tela });
+  else if (rota === 'pedidos') telaPedidos(conteudo);
   else if (rota === 'configuracoes') telaConfiguracoes(conteudo);
   else if (rota === 'gastos') telaGastos(conteudo);
   else if (rota === 'caixa') telaCaixa(conteudo);

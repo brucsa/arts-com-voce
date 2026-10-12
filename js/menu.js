@@ -63,23 +63,35 @@ export const GRUPOS = [
   },
 ];
 
+// Todas as telas continuam aqui e abrem pelo endereço (#/rota), mesmo as que
+// não aparecem no menu do Essencial.
 export const TELAS = Object.fromEntries(GRUPOS.flatMap(g => g.telas).map(t => [t.rota, t]));
+
+// ---- Arts com Você Essencial (E1): navegação com três áreas ----------------
+// Tela aberta ao entrar e quando o endereço não existe.
+export const ROTA_INICIAL = 'pedidos';
+// Menu principal.
+export const MENU_PRINCIPAL = ['pedidos', 'caixa', 'joca'];
+// Grupo "Mais": telas prontas que ficam fora do menu principal.
+export const MENU_MAIS = ['gastos', 'estoque', 'configuracoes'];
+// As demais telas (Início, Vendas, Produção, Produtos, Canais, Relatórios,
+// Fechamento e Pedidos da Shopee como tela própria) ficam fora do menu, mas
+// continuam abrindo pelo endereço. A Shopee aparece na aba Shopee de Pedidos.
 
 // Barra inferior do celular (Admin).
 export const BARRA_INFERIOR = [
-  { rota: 'inicio', titulo: 'Início', icone: 'ti-home' },
-  { rota: 'vendas', titulo: 'Vendas', icone: 'ti-receipt' },
+  { rota: 'pedidos', titulo: 'Pedidos', icone: 'ti-truck-delivery' },
+  { rota: 'caixa', titulo: 'Caixa', icone: 'ti-wallet' },
   { acao: 'atalhos', titulo: 'Novo', icone: 'ti-plus', destaque: true },
-  { rota: 'estoque', titulo: 'Estoque', icone: 'ti-stack-2' },
+  { rota: 'joca', titulo: 'Joca ⭐', icone: 'ti-star' },
   { acao: 'menu', titulo: 'Mais', icone: 'ti-menu-2' },
 ];
 
-// Atalhos do botão ＋.
+// Atalhos do botão ＋. Abrem os formulários existentes, sem mudar de tela.
 export const ATALHOS = [
-  { rota: 'vendas', titulo: 'Nova venda', icone: 'ti-receipt' },
-  { rota: 'producao', titulo: 'Nova produção', icone: 'ti-printer' },
-  { rota: 'gastos', titulo: 'Novo gasto', icone: 'ti-shopping-cart' },
-  { rota: 'caixa', titulo: 'Registrar recebimento', icone: 'ti-cash' },
+  { acao: 'novo-pedido', titulo: 'Novo pedido', icone: 'ti-clipboard-plus' },
+  { acao: 'novo-gasto', titulo: 'Novo gasto', icone: 'ti-shopping-cart' },
+  { acao: 'nova-compra', titulo: 'Nova compra de material', icone: 'ti-package' },
 ];
 
 // Ordem de desenvolvimento (Especificação v1.1).
