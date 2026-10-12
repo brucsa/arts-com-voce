@@ -500,3 +500,37 @@ button.atalho { background: var(--papel); font: inherit; font-weight: 700; text-
 }
 @media (min-width: 900px) { .folha.folha-produto { width: min(720px, calc(100% - 32px)); } }
 .detalhe-dados .linha-dado strong { white-space: nowrap; overflow-wrap: normal; }
+
+/* ---------------------------------------------------------- Pedidos Diretos Essencial (R76–R84) */
+.selo-pd-aguardando { background: var(--ambar-claro); color: var(--ambar-escuro); }
+.selo-pd-produzindo { background: var(--lilas-claro); color: var(--lilas-escuro); }
+.selo-pd-pronto { background: var(--azul-claro); color: var(--azul-escuro); }
+.selo-pd-entregue { background: var(--menta-claro); color: var(--menta-escuro); }
+.selo-pd-cancelado { background: var(--creme); color: var(--tinta-2); border: 1px solid var(--linha); }
+.selo-pd-atrasado { background: var(--erro-claro); color: var(--erro); }
+.cartao-pedidos { padding: 4px 16px; }
+.linha-pedido { padding: 0; }
+.pedido-botao {
+  width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 12px 0; border: 0; background: none; font: inherit; color: inherit; text-align: left; cursor: pointer;
+}
+.pedido-botao:hover .linha-texto strong { color: var(--azul-escuro); }
+.pedido-selos { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px; }
+.pedido-valores { text-align: right; }
+.pedido-saldo { font-size: .85rem; font-weight: 700; }
+.status-escolha { display: flex; flex-wrap: wrap; gap: 8px; }
+.status-escolha .status-atual { background: var(--azul-claro); border-color: var(--azul-claro); color: var(--azul-escuro); opacity: 1; cursor: default; }
+.acoes-pedido { margin: 16px 0 4px; }
+.linha-dado.linha-destaque strong { font-size: 1.05rem; }
+.itens-pedido { display: grid; gap: 10px; }
+.item-pedido { grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); }
+.item-pedido .campo input[hidden] { display: none; }
+.item-pedido [data-cor-texto] { margin-top: 6px; }
+.item-pedido .campo-erro { grid-column: 1 / -1; }
+.nota-rodape { margin-top: 12px; }
+@media (max-width: 599px) {
+  .pedido-botao { flex-wrap: wrap; }
+  .pedido-botao .linha-texto { flex: 1 1 100%; }
+  .pedido-valores { width: 100%; display: flex; justify-content: space-between; align-items: baseline; }
+  .acoes-pedido .botao { flex: 1 1 100%; }
+}

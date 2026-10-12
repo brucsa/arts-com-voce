@@ -11,7 +11,8 @@ import { telaGastos } from './telas/gastos.js';
 import { telaCaixa } from './telas/caixa.js';
 import { telaEstoque } from './telas/estoque.js';
 import { telaShopee } from './telas/shopee.js';
-import { telaPedidos } from './telas/pedidos.js';
+import { telaPedidos, mostrarPedidoDireto } from './telas/pedidos.js';
+import { abrirNovoPedido } from './telas/pedidos-diretos.js';
 import { telaProdutos } from './telas/produtos.js';
 import { abrirNovoGasto, oferecerGastoDosOutros } from './telas/gastos.js';
 import { abrirNovaCompra } from './telas/compra.js';
@@ -204,14 +205,19 @@ async function usarAtalho(acao) {
   const aviso = app.querySelector('[data-atalhos-aviso]');
   const avisar = texto => { aviso.textContent = texto; aviso.hidden = false; };
 
-  if (acao === 'novo-pedido') {
-    return avisar('O cadastro de novos pedidos estará disponível na próxima etapa (E2). Por enquanto, nada é cadastrado aqui.');
-  }
   if (!configurado) return avisar('Este formulário precisa do Supabase configurado.');
 
   folha.close();
   try {
-    if (acao === 'novo-gasto') {
+    if (acao === 'novo-pedido') {
+      // Pedidos Diretos Essencial: depois de salvar, abre Pedidos › Diretos com o pedido.
+      await abrirNovoPedido({
+        aoConcluir(mensagem, id) {
+          mostrarPedidoDireto(mensagem, id);
+          if (location.hash === '#/pedidos') rotearAdmin(); else location.hash = '#/pedidos';
+        },
+      });
+    } else if (acao === 'novo-gasto') {
       await abrirNovoGasto({}, async () => rotearAdmin());
     } else if (acao === 'nova-compra') {
       await abrirNovaCompra({

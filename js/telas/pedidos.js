@@ -1,17 +1,30 @@
-// Arts com Você Essencial · E1 · Pedidos (só Admin)
-// Duas abas: Diretos (cadastro chega na E2) e Shopee (o módulo existente, sem mudança).
+// Arts com Você Essencial · Pedidos (só Admin)
+// Duas abas: Diretos (Pedidos Diretos Essencial, R76–R84) e Shopee (o módulo existente, sem mudança).
 
 import { telaShopee } from './shopee.js';
+import { telaPedidosDiretos } from './pedidos-diretos.js';
 
 const ABAS = [
   { id: 'diretos', titulo: 'Diretos' },
   { id: 'shopee', titulo: 'Shopee' },
 ];
 
-// Abre na aba Shopee. A aba escolhida fica guardada enquanto a página estiver aberta.
-let abaAtual = 'shopee';
+// Ao chegar em Pedidos (pelo menu, pela barra ou ao entrar), abre sempre na aba
+// Diretos. Quando a própria tela de Pedidos é redesenhada (por exemplo, depois
+// de um gasto lançado pelo ＋), a aba que estava aberta continua aberta.
+let abaAtual = 'diretos';
+// Depois de salvar um pedido pelo atalho ＋: mostra a aba Diretos com o pedido aberto.
+let pendente = null;
+
+/** Faz a próxima abertura da tela Pedidos mostrar a aba Diretos (com mensagem e pedido aberto). */
+export function mostrarPedidoDireto(mensagem, id) {
+  abaAtual = 'diretos';
+  pendente = { mensagem, abrir: id };
+}
 
 export function telaPedidos(el) {
+  const redesenho = !!el.querySelector('#aba-diretos');   // já estava na tela de Pedidos
+  if (!redesenho) abaAtual = 'diretos';
   el.innerHTML = `
     <div class="abas" role="tablist" aria-label="Tipo de pedido">
       ${ABAS.map(a => `<button type="button" class="aba" role="tab" id="aba-${a.id}"
@@ -48,12 +61,7 @@ export function telaPedidos(el) {
 }
 
 function desenharDiretos(painel) {
-  painel.innerHTML = `
-    <section class="cartao em-construcao">
-      <span class="selo">Em breve</span>
-      <h2><i class="ti ti-truck-delivery" aria-hidden="true"></i> Pedidos diretos</h2>
-      <p class="texto-secundario">O cadastro de pedidos diretos chega na próxima etapa (E2).
-        Por enquanto, nada é cadastrado aqui.</p>
-      <p class="texto-secundario">Os pedidos da Shopee continuam na aba <strong>Shopee</strong>.</p>
-    </section>`;
+  const opcoes = pendente || {};
+  pendente = null;
+  telaPedidosDiretos(painel, opcoes);
 }
