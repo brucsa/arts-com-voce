@@ -12,6 +12,7 @@ import { telaCaixa } from './telas/caixa.js';
 import { telaEstoque } from './telas/estoque.js';
 import { telaShopee } from './telas/shopee.js';
 import { telaPedidos } from './telas/pedidos.js';
+import { telaProdutos } from './telas/produtos.js';
 import { abrirNovoGasto, oferecerGastoDosOutros } from './telas/gastos.js';
 import { abrirNovaCompra } from './telas/compra.js';
 
@@ -242,6 +243,7 @@ function rotearAdmin() {
 
   if (rota === 'inicio') telaInicio(conteudo, { perfil: estado.perfil, tela });
   else if (rota === 'pedidos') telaPedidos(conteudo);
+  else if (rota === 'produtos') telaProdutos(conteudo);
   else if (rota === 'configuracoes') telaConfiguracoes(conteudo);
   else if (rota === 'gastos') telaGastos(conteudo);
   else if (rota === 'caixa') telaCaixa(conteudo);
