@@ -100,7 +100,8 @@ export const ETAPAS = [
   'Produção', 'Vendas e pedidos', 'Recebimentos', 'Joca ⭐', 'Cancelamentos e devoluções',
   'Dashboard', 'Canais e relatórios', 'Fechamento mensal', 'Exportação e polimento',
 ];
-export const ETAPA_ATUAL = 3;
-// Como a etapa atual aparece no Início: 'Em planejamento' até o escopo ser aprovado,
-// depois 'Em andamento'.
-export const ETAPA_ATUAL_ROTULO = 'Em andamento';
+export const ETAPA_ATUAL = 5;
+// Como a etapa atual aparece no Início: 'Próxima' enquanto não começou,
+// 'Em planejamento' até o escopo ser aprovado, depois 'Em andamento'.
+// (20/10/2026: Etapas 0 a 4 concluídas; Produtos no Essencial, R71–R75.)
+export const ETAPA_ATUAL_ROTULO = 'Próxima';
