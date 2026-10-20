@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#FFFFFF">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="description" content="Catálogo da Arts com Você: escolha seus favoritos, coloque no carrinho e envie seu pedido pelo WhatsApp.">
+  <title>Catálogo · Arts com Você</title>
+  <link rel="icon" href="img/favicon.ico" sizes="16x16 32x32 48x48">
+  <link rel="icon" href="img/favicon-32.png" type="image/png" sizes="32x32">
+  <link rel="apple-touch-icon" href="img/apple-touch-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800;900&display=swap">
+  <link rel="stylesheet" href="css/catalogo.css">
+</head>
+<body>
+  <header class="topo">
+    <a class="marca" href="#/" aria-label="Arts com Você, início do catálogo">
+      <img src="img/flor.png" alt="" width="40" height="40">
+      <span><strong>Arts com Você</strong><small>Feito camada por camada para encantar.</small></span>
+    </a>
+    <a class="botao-carrinho" href="#/carrinho" aria-label="Abrir carrinho">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="20" r="1.4"/><circle cx="18" cy="20" r="1.4"/><path d="M2.5 3.5h3l2.4 11.2a1.5 1.5 0 0 0 1.5 1.2h8.4a1.5 1.5 0 0 0 1.5-1.1l1.7-6.8H6.6"/></svg>
+      <span class="contador" data-contador hidden></span>
+    </a>
+  </header>
+
+  <main id="conteudo" tabindex="-1">
+    <p class="carregando">Carregando o catálogo…</p>
+  </main>
+
+  <nav class="barra" aria-label="Navegação do catálogo">
+    <a href="#/" data-nav="vitrine">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/></svg>Início</a>
+    <a href="#/carrinho" data-nav="carrinho">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="20" r="1.4"/><circle cx="18" cy="20" r="1.4"/><path d="M2.5 3.5h3l2.4 11.2a1.5 1.5 0 0 0 1.5 1.2h8.4a1.5 1.5 0 0 0 1.5-1.1l1.7-6.8H6.6"/></svg>Carrinho</a>
+    <a href="https://wa.me/5511940266564" target="_blank" rel="noopener">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20l1.3-4A8 8 0 1 1 8.6 19z"/></svg>WhatsApp</a>
+  </nav>
+
+  <noscript>O catálogo precisa de JavaScript ativado.</noscript>
+  <script type="module" src="js/catalogo.js"></script>
+</body>
+</html>

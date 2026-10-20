@@ -1,6 +1,7 @@
 // Etapa 4 · Catálogo Essencial de Produtos (só Admin)
 // Regras: R71–R75 (especificação v1.3).
 // Grava só pelas funções salvar_produto, definir_produto_ativo e excluir_produto.
+// Catálogo público (R85–R88): as marcações são gravadas por definir_produto_catalogo.
 // Fotos: pasta privada "produtos" do Storage, vistas por links temporários.
 
 import { supabase, configurado } from '../supabase.js';
@@ -188,7 +189,12 @@ async function desenhar(area, recarregar, mensagem) {
       .order('tipo').order('variacao').then(ok),
   ]);
   const fotos = await linksDasFotos(sb, produtos);
-  const contexto = { sb, produtos, filamentos, fotos, recarregar };
+  // Marcações do catálogo público (R86). Antes do sql/11 as colunas não
+  // existem: a tela continua funcionando, só sem as marcações.
+  const marcas = await sb.from('produtos').select('id, no_catalogo, personalizado')
+    .then(({ data, error }) => (error ? null : Object.fromEntries((data || []).map(m => [m.id, m]))));
+  if (marcas) produtos.forEach(p => Object.assign(p, { no_catalogo: false, personalizado: false }, marcas[p.id] || {}));
+  const contexto = { sb, produtos, filamentos, fotos, recarregar, catalogo: !!marcas };
 
   area.innerHTML = `
     <section class="cartao filtros filtros-produtos">
@@ -270,7 +276,7 @@ function cartaoProduto(p, url) {
   return `<button type="button" class="cartao-produto ${p.ativo ? '' : 'produto-inativo'}" data-produto="${p.id}">
     ${miniFoto(url, p.nome, 'produto-foto')}
     <span class="produto-corpo">
-      <span class="produto-nome">${esc(p.nome)}${p.ativo ? '' : ' <span class="selo-p selo-inativo">Inativo</span>'}</span>
+      <span class="produto-nome">${esc(p.nome)}${p.ativo ? '' : ' <span class="selo-p selo-inativo">Inativo</span>'}${selosCatalogo(p)}</span>
       <span class="produto-linha">
         ${p.sem_preco ? '<span class="selo-p selo-sem-preco">Sem preço</span>' : `<strong class="produto-preco">${brl(p.preco_venda)}</strong>`}
         ${tempo ? `<span class="produto-tempo"><i class="ti ti-clock" aria-hidden="true"></i> ${tempo}</span>` : ''}
@@ -278,6 +284,18 @@ function cartaoProduto(p, url) {
       ${chipsCores(p.cores, 3)}
     </span>
   </button>`;
+}
+
+function selosCatalogo(p) {
+  return (p.no_catalogo ? ' <span class="selo-p selo-catalogo">No catálogo</span>' : '')
+    + (p.personalizado ? ' <span class="selo-p selo-personalizado">Personalizado</span>' : '');
+}
+
+// Como o produto aparece no catálogo público (R85–R86).
+function situacaoCatalogo(p) {
+  if (!p.no_catalogo) return 'Não aparece';
+  if (!p.ativo) return 'Marcado, mas não aparece porque está inativo';
+  return p.personalizado || p.sem_preco ? 'Aparece como “Sob consulta”' : `Aparece por ${brl(p.preco_venda)}`;
 }
 
 // ---------------------------------------------------------------- folhas
@@ -298,7 +316,7 @@ function abrirFolha(html, { larga = false, rotulo }) {
 }
 
 function abrirDetalhe(ctx, p) {
-  const { sb, fotos, recarregar } = ctx;
+  const { sb, fotos, recarregar, catalogo } = ctx;
   const tempo = tempoTexto(p.tempo_impressao_min);
   const dims = dimensoesTexto(p);
   const linha = (rotulo, valor) => (valor ? `<div class="linha-dado"><span>${rotulo}</span><strong>${valor}</strong></div>` : '');
@@ -310,12 +328,13 @@ function abrirDetalhe(ctx, p) {
     <div class="detalhe-produto">
       ${miniFoto(fotos[p.foto_path], p.nome, 'detalhe-foto')}
       <div class="detalhe-dados">
-        ${p.ativo ? '' : '<p><span class="selo-p selo-inativo">Inativo</span></p>'}
+        ${p.ativo && !p.no_catalogo && !p.personalizado ? '' : `<p>${p.ativo ? '' : '<span class="selo-p selo-inativo">Inativo</span>'}${selosCatalogo(p)}</p>`}
         ${p.descricao ? `<p class="detalhe-descricao">${esc(p.descricao)}</p>` : ''}
         ${linha('Preço de venda', p.sem_preco ? '<span class="selo-p selo-sem-preco">Sem preço</span>' : brl(p.preco_venda))}
         ${linha('Tempo', tempo)}
         ${linha('Peso', p.peso_g != null ? `${paraCampo(p.peso_g, 0, 2)} g` : '')}
         ${linha('Dimensões (A × L × P)', dims)}
+        ${catalogo ? linha('Catálogo público', esc(situacaoCatalogo(p))) : ''}
         ${p.cores.length ? `<p class="detalhe-titulo">Cores</p>${chipsCores(p.cores)}` : ''}
       </div>
     </div>
@@ -352,7 +371,7 @@ function abrirDetalhe(ctx, p) {
 }
 
 function abrirFormulario(ctx, p) {
-  const { sb, produtos, filamentos, fotos, recarregar } = ctx;
+  const { sb, produtos, filamentos, fotos, recarregar, catalogo } = ctx;
   const editando = !!p;
   const ligadas = new Set((p?.cores || []).map(c => c.material_id));
   // Filamentos ativos + os inativos que já estão neste produto (R72).
@@ -419,6 +438,18 @@ function abrirFormulario(ctx, p) {
             </div>
           </fieldset>
         </div>
+
+        ${catalogo ? `<fieldset class="itens-compra">
+          <legend>Catálogo público</legend>
+          <div class="campo campo-check">
+            <label><input type="checkbox" name="no_catalogo" ${p?.no_catalogo ? 'checked' : ''}><span>No catálogo</span></label>
+            <small class="campo-dica">Aparece na vitrine com nome, preço, descrição, foto e cores. Produto inativo não aparece.</small>
+          </div>
+          <div class="campo campo-check">
+            <label><input type="checkbox" name="personalizado" ${p?.personalizado ? 'checked' : ''}><span>Personalizado (preço sob consulta)</span></label>
+            <small class="campo-dica">Personalizado ou sem preço aparece como “Sob consulta”.</small>
+          </div>
+        </fieldset>` : ''}
 
         <fieldset class="itens-compra">
           <legend>Dimensões (cm)</legend>
@@ -545,8 +576,21 @@ function abrirFormulario(ctx, p) {
       const r = await sb.rpc('salvar_produto', dados).then(ok);
       // 3. A foto que deixou de ser usada é apagada depois de salvar (R73).
       await apagarFoto(sb, r?.foto_anterior);
+      let feito = editando ? `"${nome}" foi atualizado.` : `"${nome}" foi cadastrado.`;
+      // 4. Marcações do catálogo público (R86), só quando mudaram.
+      if (catalogo) {
+        const noCatalogo = form.elements.no_catalogo.checked;
+        const personalizado = form.elements.personalizado.checked;
+        if (noCatalogo !== !!p?.no_catalogo || personalizado !== !!p?.personalizado) {
+          try {
+            await sb.rpc('definir_produto_catalogo', { p_id: r.id, p_no_catalogo: noCatalogo, p_personalizado: personalizado }).then(ok);
+          } catch (err) {
+            feito = `"${nome}" foi salvo, mas as marcações do catálogo não foram gravadas (${err.message}). Abra o produto e tente de novo.`;
+          }
+        }
+      }
       fechar();
-      await recarregar(editando ? `"${nome}" foi atualizado.` : `"${nome}" foi cadastrado.`);
+      await recarregar(feito);
     } catch (err) {
       if (enviada) await apagarFoto(sb, enviada);   // não deixa sobra se o salvamento falhou
       falhar(err.message);

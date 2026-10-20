@@ -447,6 +447,8 @@ button.atalho { background: var(--papel); font: inherit; font-weight: 700; text-
 .produto-preco { color: var(--azul-escuro); font-size: 1.05rem; }
 .produto-tempo { display: inline-flex; align-items: center; gap: 4px; color: var(--tinta-2); font-size: .85rem; font-weight: 700; }
 .selo-sem-preco { background: var(--ambar-claro); color: var(--ambar-escuro); }
+.selo-catalogo { background: var(--azul-claro); color: var(--azul-escuro); }
+.selo-personalizado { background: var(--lilas-claro); color: var(--lilas-escuro); }
 .chips-cores { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
 .chip-cor { padding: 3px 9px; border-radius: 999px; background: var(--lilas-claro); color: var(--lilas-escuro); font-size: .75rem; font-weight: 700; }
 .chip-inativo { background: var(--creme); color: var(--tinta-2); border: 1px dashed var(--linha-forte); }
