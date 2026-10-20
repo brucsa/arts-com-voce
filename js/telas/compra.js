@@ -5,6 +5,7 @@ import { esc, brl, hojeISO, lerValor, lerDecimal } from '../format.js';
 import { FORMAS, pagoNaHora } from '../financeiro.js';
 import { CATEGORIA_MATERIAL, nomeMaterial, ratear, custoUnitario } from '../estoque-util.js';
 import { cliqueForaDoDialogo } from '../ui/dialogo.js';
+import { abrirNovoMaterial } from '../ui/novo-material.js';
 
 /**
  * Abre a folha de nova compra.
@@ -13,13 +14,14 @@ import { cliqueForaDoDialogo } from '../ui/dialogo.js';
  */
 export async function abrirNovaCompra({ aoConcluir }) {
   const sb = await supabase();
-  const [materiais, categorias] = await Promise.all([
-    sb.from('materiais').select('id, categoria, tipo, variacao, unidade, ativo').eq('ativo', true)
+  const [todosMateriais, categorias] = await Promise.all([
+    sb.from('materiais').select('id, categoria, tipo, variacao, unidade, ativo')
       .order('categoria').order('tipo').order('variacao').then(ok),
     sb.from('categorias_lanc').select('id, nome, natureza, ativo').eq('natureza', 'ESTOQUE').eq('ativo', true)
       .order('nome').then(ok),
   ]);
-  if (!materiais.length) { window.alert('Cadastre os materiais em Configurações → Materiais antes de registrar uma compra.'); return; }
+  // Só os ativos aparecem para escolher; os inativos servem para não cadastrar o mesmo de novo.
+  const materiais = todosMateriais.filter(m => m.ativo);
   if (!categorias.length) { window.alert('Não há categoria de Estoque ativa em Configurações → Categorias.'); return; }
 
   const MAT = Object.fromEntries(materiais.map(m => [m.id, m]));
@@ -29,11 +31,15 @@ export async function abrirNovaCompra({ aoConcluir }) {
     return categorias.find(c => c.nome.toLowerCase() === plural)?.id;
   };
 
-  const opcoesMaterial = `<option value="">Escolha…</option>` + Object.keys(CATEGORIA_MATERIAL).map(cat => {
-    const lista = materiais.filter(m => m.categoria === cat);
-    return lista.length ? `<optgroup label="${CATEGORIA_MATERIAL[cat].plural}">${lista.map(m =>
-      `<option value="${m.id}">${esc(nomeMaterial(m))} (${m.unidade})</option>`).join('')}</optgroup>` : '';
-  }).join('');
+  const NOVO = '__novo__';
+  const ordem = (a, b) => a.tipo.localeCompare(b.tipo, 'pt-BR') || String(a.variacao || '').localeCompare(String(b.variacao || ''), 'pt-BR');
+  const opcoesMaterial = () => `<option value="">Escolha…</option>`
+    + `<option value="${NOVO}">+ Cadastrar material novo</option>`
+    + Object.keys(CATEGORIA_MATERIAL).map(cat => {
+      const lista = materiais.filter(m => m.categoria === cat).sort(ordem);
+      return lista.length ? `<optgroup label="${CATEGORIA_MATERIAL[cat].plural}">${lista.map(m =>
+        `<option value="${m.id}">${esc(nomeMaterial(m))} (${m.unidade})</option>`).join('')}</optgroup>` : '';
+    }).join('');
 
   const dialog = document.createElement('dialog');
   dialog.className = 'folha folha-form folha-larga';
@@ -64,7 +70,7 @@ export async function abrirNovaCompra({ aoConcluir }) {
 
       <fieldset class="itens-compra">
         <legend>Itens</legend>
-        <p class="campo-dica">Valor pago por item. Se o desconto foi só de um item, digite o valor já com desconto.</p>
+        <p class="campo-dica">Valor pago por item. Se o desconto foi só de um item, digite o valor já com desconto. Material que ainda não existe: escolha "+ Cadastrar material novo" na lista.</p>
         <div data-itens></div>
         <button type="button" class="botao botao-pequeno" data-add><i class="ti ti-plus" aria-hidden="true"></i> Adicionar item</button>
       </fieldset>
@@ -111,7 +117,7 @@ export async function abrirNovaCompra({ aoConcluir }) {
     div.className = 'item-compra';
     div.innerHTML = `
       <div class="campo"><label for="i-mat-${n}">Material</label>
-        <select id="i-mat-${n}" data-campo="material">${opcoesMaterial}</select></div>
+        <select id="i-mat-${n}" data-campo="material">${opcoesMaterial()}</select></div>
       <div class="campo"><label for="i-qtd-${n}">Quantidade <span data-unidade></span></label>
         <input type="text" inputmode="decimal" id="i-qtd-${n}" data-campo="quantidade" placeholder="1000"></div>
       <div class="campo"><label for="i-val-${n}">Valor pago (R$)</label>
@@ -181,6 +187,29 @@ export async function abrirNovaCompra({ aoConcluir }) {
     if (b) { b.closest('.item-compra').remove(); atualizar(); }
   });
   form.addEventListener('input', () => { erro.hidden = true; atualizar(); });
+  // "+ Cadastrar material novo": cadastra sem sair da compra e já escolhe no item.
+  listaItens.addEventListener('focusin', e => {
+    if (e.target.dataset.campo === 'material') e.target.dataset.anterior = e.target.value === NOVO ? '' : e.target.value;
+  });
+  listaItens.addEventListener('change', async e => {
+    const sel = e.target;
+    if (sel.dataset.campo !== 'material' || sel.value !== NOVO) return;
+    e.stopImmediatePropagation();
+    const anterior = sel.dataset.anterior || '';
+    const categoriaSugerida = MAT[anterior]?.categoria
+      || MAT[listaItens.querySelector('[data-campo="material"]').value]?.categoria || 'FILAMENTO';
+    const novo = await abrirNovoMaterial(sb, { categoria: categoriaSugerida, existentes: todosMateriais });
+    if (!novo) { sel.value = anterior; atualizar(); sel.focus(); return; }
+    materiais.push(novo); todosMateriais.push(novo); MAT[novo.id] = novo;
+    // Atualiza a lista de todos os itens, mantendo o que cada um já tinha escolhido.
+    listaItens.querySelectorAll('[data-campo="material"]').forEach(s2 => {
+      const valor = s2 === sel ? novo.id : s2.value;
+      s2.innerHTML = opcoesMaterial(); s2.value = valor;
+    });
+    sel.dataset.anterior = novo.id;
+    sel.dispatchEvent(new Event('change', { bubbles: true }));
+    sel.closest('.item-compra').querySelector('[data-campo="quantidade"]').focus();
+  }, true);
   form.addEventListener('change', e => {
     if (e.target.name === 'categoria') categoriaTocada = true;
     if (e.target.dataset.campo === 'material' && !categoriaTocada) {
@@ -208,7 +237,7 @@ export async function abrirNovaCompra({ aoConcluir }) {
     if (data > hojeISO()) return mostrar('A data da compra não pode ser no futuro.');
     for (const [i, it] of itens.entries()) {
       const rot = `Item ${i + 1}`;
-      if (!it.material_id) return mostrar(`${rot}: escolha o material.`);
+      if (!it.material_id || it.material_id === NOVO) return mostrar(`${rot}: escolha o material.`);
       if (!Number.isFinite(it.quantidade) || it.quantidade <= 0) return mostrar(`${rot}: informe a quantidade.`);
       if (!Number.isFinite(it.valor) || it.valor <= 0) return mostrar(`${rot}: informe o valor pago.`);
     }
