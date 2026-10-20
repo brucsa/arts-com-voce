@@ -26,6 +26,8 @@ export const ORIGEM = {
   APORTE: 'Aporte',
   RETIRADA: 'Retirada',
   ESTORNO: 'Estorno',
+  RECEBIMENTO: 'Recebimento de pedido',   // Pedidos Diretos → Caixa
+  REEMBOLSO: 'Devolução a cliente',       // Pedidos Diretos → Caixa
 };
 
 /** "2026-10" → { inicio: '2026-10-01', fim: '2026-10-31' } */

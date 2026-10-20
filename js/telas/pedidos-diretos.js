@@ -4,7 +4,8 @@
 // mudar_status_pedido, cancelar_pedido, registrar_recebimento,
 // registrar_devolucao, estornar_recebimento, estornar_devolucao). As regras
 // valem no banco; aqui a tela só ajuda e mostra as mensagens dele.
-// Não mexe no Caixa, no estoque nem na comissão do Joca.
+// Recebimentos, devoluções e estornos entram no Caixa pelo próprio banco
+// (integração Pedidos Diretos → Caixa). Não mexe no estoque nem na comissão do Joca.
 
 import { supabase, configurado } from '../supabase.js';
 import { ok } from '../db.js';
@@ -52,6 +53,15 @@ const numeroPedido = n => `#${String(n).padStart(4, '0')}`;
 const corDoFilamento = f => `${f.tipo} · ${f.variacao ?? f.cor}`;
 
 const filtro = { busca: '', status: '' };
+
+/** Código de envio: o mesmo formulário enviado de novo não cria um segundo lançamento. */
+function novaChave() {
+  if (crypto.randomUUID) return crypto.randomUUID();
+  const b = crypto.getRandomValues(new Uint8Array(16));
+  b[6] = (b[6] & 0x0f) | 0x40; b[8] = (b[8] & 0x3f) | 0x80;
+  const h = [...b].map(x => x.toString(16).padStart(2, '0')).join('');
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
+}
 
 // ---------------------------------------------------------------- dados
 async function carregarCadastros(sb) {
@@ -335,7 +345,7 @@ async function abrirDetalhe(ctx, id) {
         ${linha('Recebido', brl(p.valor_recebido))}
         ${num(p.valor_devolvido) ? linha('Devolvido', `− ${brl(p.valor_devolvido)}`) : ''}
         ${linha('Saldo a receber', brl(p.saldo), 'linha-destaque')}
-        <p class="campo-dica">Valores ainda fora do Caixa. Não lance estes recebimentos no Caixa como aporte.</p>
+        <p class="campo-dica">Recebimentos e devoluções entram no Caixa automaticamente, com a data de cada lançamento.</p>
       </div>
     </div>
 
@@ -392,7 +402,7 @@ async function abrirDetalhe(ctx, id) {
     },
   }));
 
-  dialog.querySelector('[data-receber]')?.addEventListener('click', () => abrirFormulario({
+  dialog.querySelector('[data-receber]')?.addEventListener('click', () => { const chave = novaChave(); abrirFormulario({
     titulo: `Registrar recebimento · ${p.numero_formatado}`,
     textoSalvar: 'Registrar recebimento',
     valores: { data: hojeISO(), valor: num(p.saldo), forma: p.forma_pagamento || 'PIX', confirmado: false },
@@ -411,13 +421,13 @@ async function abrirDetalhe(ctx, id) {
       if (!v.confirmado) throw new Error('Marque a confirmação: só registre valores realmente recebidos.');
       await sb.rpc('registrar_recebimento', {
         p_venda_id: p.id, p_data: v.data, p_valor: v.valor, p_forma_pagamento: v.forma,
-        p_observacao: v.observacao, p_confirmado: true,
+        p_observacao: v.observacao, p_confirmado: true, p_chave: chave,
       }).then(ok);
-      await depois(`Recebimento de ${brl(v.valor)} registrado no pedido ${p.numero_formatado}.`);
+      await depois(`Recebimento de ${brl(v.valor)} registrado no pedido ${p.numero_formatado} e no Caixa.`);
     },
-  }));
+  }); });
 
-  dialog.querySelector('[data-devolver]')?.addEventListener('click', () => abrirFormulario({
+  dialog.querySelector('[data-devolver]')?.addEventListener('click', () => { const chave = novaChave(); abrirFormulario({
     titulo: `Registrar devolução · ${p.numero_formatado}`,
     textoSalvar: 'Registrar devolução',
     valores: { data: hojeISO(), forma: p.forma_pagamento || 'PIX' },
@@ -431,11 +441,11 @@ async function abrirDetalhe(ctx, id) {
     ],
     async aoSalvar(v) {
       await sb.rpc('registrar_devolucao', {
-        p_venda_id: p.id, p_data: v.data, p_valor: v.valor, p_forma_pagamento: v.forma, p_motivo: v.motivo,
+        p_venda_id: p.id, p_data: v.data, p_valor: v.valor, p_forma_pagamento: v.forma, p_motivo: v.motivo, p_chave: chave,
       }).then(ok);
-      await depois(`Devolução de ${brl(v.valor)} registrada no pedido ${p.numero_formatado}.`);
+      await depois(`Devolução de ${brl(v.valor)} registrada no pedido ${p.numero_formatado} e no Caixa.`);
     },
-  }));
+  }); });
 
   dialog.querySelectorAll('[data-estornar]').forEach(b => b.addEventListener('click', () => {
     const [tipo, lid] = b.dataset.estornar.split(':');
@@ -444,7 +454,8 @@ async function abrirDetalhe(ctx, id) {
     abrirMotivo({
       titulo: `Estornar ${nome} de ${brl(l.valor)}`,
       explicacao: `Use só para corrigir um lançamento feito por engano (${dataBR(l.data)}). `
-        + 'O registro continua visível no histórico e deixa de contar nos valores do pedido.',
+        + 'O registro continua visível no histórico e deixa de contar nos valores do pedido. '
+        + 'O Caixa recebe o estorno com a data de hoje.',
       rotulo: 'Motivo do estorno',
       textoSalvar: 'Estornar',
       async aoSalvar(motivo) {

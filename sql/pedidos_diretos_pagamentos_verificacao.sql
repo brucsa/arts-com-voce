@@ -9,11 +9,10 @@
 with tabelas(nome) as (
   values ('recebimentos_venda'), ('devolucoes_venda')
 ),
-funcoes_admin(assinatura) as (
-  values ('public.registrar_recebimento(uuid, date, numeric, text, text, boolean)'),
-         ('public.registrar_devolucao(uuid, date, numeric, text, text)'),
-         ('public.estornar_recebimento(uuid, text)'),
-         ('public.estornar_devolucao(uuid, text)')
+-- Pelo nome: depois da integração com o Caixa, registrar_recebimento e
+-- registrar_devolucao ganham o código de envio (um parâmetro a mais).
+funcoes_admin(nome) as (
+  values ('registrar_recebimento'), ('registrar_devolucao'), ('estornar_recebimento'), ('estornar_devolucao')
 ),
 funcoes_internas(assinatura) as (
   values ('public.tg_lancamentos_pedido_protege()'),
@@ -55,9 +54,11 @@ checagens (ordem, verificacao, passou, detalhe) as (
 
   union all
   select 4, 'As 4 funções financeiras exigem a Admin e o visitante não executa',
-         (select count(*) from funcoes_admin f join pg_proc p on p.oid = to_regprocedure(f.assinatura)
+         (select count(*) from funcoes_admin f join pg_proc p on p.proname = f.nome and p.pronamespace = 'public'::regnamespace
            where p.prosecdef and p.prosrc like '%exigir_admin()%') = 4
-     and not exists (select 1 from funcoes_admin f where has_function_privilege('anon', f.assinatura, 'EXECUTE')), ''
+     and (select count(*) from funcoes_admin f join pg_proc p on p.proname = f.nome and p.pronamespace = 'public'::regnamespace) = 4
+     and not exists (select 1 from funcoes_admin f join pg_proc p on p.proname = f.nome and p.pronamespace = 'public'::regnamespace
+                      where has_function_privilege('anon', p.oid, 'EXECUTE')), ''
 
   union all
   select 5, 'Funções internas fechadas (nem o usuário logado executa)',

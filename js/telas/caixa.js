@@ -95,7 +95,9 @@ async function desenhar(area, recarregar) {
       </div>
       ${extrato.length ? `<ul class="lista">${extrato.map(m => {
         const entrada = m.tipo === 'ENTRADA';
-        const podeEstornar = m.origem !== 'ESTORNO' && !m.estornado;
+        // Movimentos que vêm de um Pedido Direto são corrigidos no próprio pedido.
+        const doPedido = m.origem === 'RECEBIMENTO' || m.origem === 'REEMBOLSO';
+        const podeEstornar = m.origem !== 'ESTORNO' && !m.estornado && !doPedido;
         return `<li class="linha">
           <div class="linha-texto">
             <strong>${esc(m.descricao)} ${m.estornado ? '<span class="selo-p selo-inativo">Estornado</span>' : ''}</strong>
