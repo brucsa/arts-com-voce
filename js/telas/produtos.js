@@ -212,6 +212,7 @@ async function desenhar(area, recarregar, mensagem) {
           <i class="ti ti-plus" aria-hidden="true"></i> Novo produto</button>
       </div>
     </section>
+    ${marcas ? barraCatalogo(produtos.filter(p => p.ativo && p.no_catalogo).length) : ''}
     <p class="aviso aviso-ok" role="status" ${mensagem ? '' : 'hidden'}>${esc(mensagem || '')}</p>
     <p class="texto-secundario contagem-produtos" data-contagem aria-live="polite"></p>
     <div class="grade-produtos" data-lista></div>`;
@@ -247,6 +248,21 @@ async function desenhar(area, recarregar, mensagem) {
     mostrar();
   });
   area.querySelector('[data-novo]').addEventListener('click', () => abrirFormulario(contexto, null));
+  area.querySelector('[data-copiar-link]')?.addEventListener('click', async e => {
+    const b = e.currentTarget;
+    const link = new URL('catalogo.html', location.href).href;
+    const mostrarLink = area.querySelector('[data-link-catalogo]');
+    try {
+      await navigator.clipboard.writeText(link);
+      b.innerHTML = '<i class="ti ti-check" aria-hidden="true"></i> Link copiado';
+      setTimeout(() => { b.innerHTML = '<i class="ti ti-copy" aria-hidden="true"></i> Copiar link'; }, 2500);
+    } catch {
+      // Sem acesso à área de transferência: mostra o link para copiar à mão.
+      mostrarLink.hidden = false;
+      mostrarLink.querySelector('input').value = link;
+      mostrarLink.querySelector('input').select();
+    }
+  });
   listaEl.addEventListener('click', e => {
     const b = e.target.closest('[data-produto]');
     if (!b) return;
@@ -285,6 +301,22 @@ function cartaoProduto(p, url) {
       ${chipsCores(p.cores, 3)}
     </span>
   </button>`;
+}
+
+// Atalho para o catálogo público (R85): abrir em outra aba e copiar o link para mandar aos clientes.
+function barraCatalogo(visiveis) {
+  return `<section class="cartao barra-catalogo">
+    <div class="barra-catalogo-texto">
+      <strong><i class="ti ti-building-store" aria-hidden="true"></i> Catálogo público</strong>
+      <span class="texto-secundario">${visiveis ? `${visiveis} produto(s) aparecendo para os clientes` : 'Nenhum produto marcado “No catálogo” ainda'}</span>
+    </div>
+    <div class="barra-catalogo-acoes">
+      <a class="botao" href="catalogo.html" target="_blank" rel="noopener"><i class="ti ti-external-link" aria-hidden="true"></i> Ver catálogo</a>
+      <button type="button" class="botao" data-copiar-link><i class="ti ti-copy" aria-hidden="true"></i> Copiar link</button>
+    </div>
+    <label class="campo campo-compacto barra-catalogo-link" data-link-catalogo hidden><span>Link do catálogo (copie e envie)</span>
+      <input type="text" readonly></label>
+  </section>`;
 }
 
 function selosCatalogo(p) {
