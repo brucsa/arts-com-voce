@@ -12,12 +12,14 @@ const QTD_MAX = 99;
 const conteudo = document.getElementById('conteudo');
 const contadorEl = document.querySelector('[data-contador]');
 
-let produtos = [];          // { id, nome, descricao, preco, sob_consulta, foto_path, cores, foto }
+let produtos = [];          // { id, nome, descricao, preco, sob_consulta, foto_path, foto }
+// Cores: por enquanto não aparecem nem são escolhidas; ficam "a consultar" (R86).
 let carregado = false;
 let busca = '';
-let carrinho = lerCarrinho(); // [{ id, cor, qtd }]
+let carrinho = lerCarrinho(); // [{ id, qtd }]
+let aviso = '';              // "… foi adicionado ao carrinho", mostrado uma vez na vitrine
 let dados = { nome: '', tel: '', obs: '' };
-let escolha = { id: null, cor: null, qtd: 1 };
+let escolha = { id: null, qtd: 1 };
 
 // ------------------------------------------------------------ carrinho no aparelho
 function lerCarrinho() {
@@ -30,12 +32,11 @@ function guardarCarrinho() {
   try { localStorage.setItem(CHAVE_CARRINHO, JSON.stringify(carrinho)); } catch { /* sem armazenamento: fica só na memória */ }
   atualizarContador();
 }
-// Itens de produtos que saíram do catálogo, ou de cores que não existem mais, são retirados.
+// Itens de produtos que saíram do catálogo são retirados; o mesmo produto fica numa linha só.
 function limparCarrinho() {
-  carrinho = carrinho.filter(i => {
-    const p = achar(i.id);
-    return p && (p.cores.length ? p.cores.includes(i.cor) : i.cor == null);
-  }).map(i => ({ ...i, qtd: Math.min(i.qtd, QTD_MAX) }));
+  const juntos = new Map();
+  carrinho.filter(i => achar(i.id)).forEach(i => juntos.set(i.id, Math.min(QTD_MAX, (juntos.get(i.id) || 0) + i.qtd)));
+  carrinho = [...juntos].map(([id, qtd]) => ({ id, qtd }));
   guardarCarrinho();
 }
 const qtdTotal = () => carrinho.reduce((s, i) => s + i.qtd, 0);
@@ -67,7 +68,7 @@ async function carregar() {
   });
   const { data, error } = await sb.rpc('catalogo_publico');
   if (error) throw error;
-  produtos = (data || []).map(p => ({ ...p, cores: p.cores || [], foto: null }));
+  produtos = (data || []).map(({ cores, ...p }) => ({ ...p, foto: null }));
   const caminhos = produtos.map(p => p.foto_path).filter(Boolean);
   if (caminhos.length) {
     const r = await sb.storage.from('produtos').createSignedUrls(caminhos, 3600);
@@ -101,8 +102,8 @@ function mensagem() {
   carrinho.forEach(i => {
     const p = achar(i.id);
     linhas.push(`• ${p.nome} x${i.qtd} — ${p.sob_consulta ? 'sob consulta' : brl(centavos(p.preco) * i.qtd / 100)}`);
-    if (i.cor) linhas.push(`   Cor: ${i.cor}`);
   });
+  linhas.push('Cores: a consultar');
   linhas.push('', `*Total: ${totalTexto}*${consulta && !soConsulta ? ' + itens sob consulta' : ''}`);
   if (dados.obs.trim()) linhas.push('', `Observação: ${dados.obs.trim()}`);
   return linhas.join('\n').replace(/ /g, ' ');
@@ -120,8 +121,10 @@ function telaVitrine() {
       <span class="so-leitor">Buscar produto</span>
       <input type="search" data-busca placeholder="Buscar produto" value="${esc(busca)}" autocomplete="off">
     </label>
+    ${aviso ? `<p class="aviso-adicionado" role="status">${esc(aviso)} <a href="#/carrinho">Ver carrinho</a></p>` : ''}
     <div class="grade" data-grade></div>
     <p class="vazio" data-vazio hidden></p>`;
+  aviso = '';
   const grade = conteudo.querySelector('[data-grade]');
   const vazio = conteudo.querySelector('[data-vazio]');
   const desenhar = () => {
@@ -133,7 +136,7 @@ function telaVitrine() {
         <div class="cartao-corpo">
           <h2 class="cartao-nome"><a href="#/produto/${p.id}">${esc(p.nome)}</a></h2>
           <span class="preco ${p.sob_consulta ? 'preco-consulta' : ''}">${precoTexto(p)}</span>
-          ${p.cores.length ? `<span class="cores-linha">${p.cores.length === 1 ? 'Cor' : 'Cores'}: ${esc(p.cores.join(' · '))}</span>` : ''}
+          <span class="cores-linha">Cores a consultar</span>
           <span class="espaco"></span>
           <a class="botao" href="#/produto/${p.id}" aria-label="Adicionar ${esc(p.nome)}">+ Adicionar</a>
         </div>
@@ -148,7 +151,7 @@ function telaVitrine() {
 function telaProduto(id) {
   const p = achar(id);
   if (!p) { location.replace('#/'); return; }
-  if (escolha.id !== id) escolha = { id, cor: p.cores[0] ?? null, qtd: 1 };
+  if (escolha.id !== id) escolha = { id, qtd: 1 };
   conteudo.innerHTML = `
     <a class="botao botao-texto voltar" href="#/">‹ Voltar para o catálogo</a>
     <div class="detalhe">
@@ -160,12 +163,7 @@ function telaProduto(id) {
         </div>
         ${p.sob_consulta ? '<p class="aviso-consulta">O valor desta peça é combinado na conversa pelo WhatsApp.</p>' : ''}
         ${p.descricao ? `<p class="descricao">${esc(p.descricao)}</p>` : ''}
-        ${p.cores.length ? `<fieldset>
-          <legend>Cor</legend>
-          <div class="opcoes">${p.cores.map(c => `
-            <label class="opcao"><input type="radio" name="cor" value="${esc(c)}" ${c === escolha.cor ? 'checked' : ''}><span>${esc(c)}</span></label>`).join('')}
-          </div>
-        </fieldset>` : ''}
+        <p class="cores-detalhe"><strong>Cores:</strong> a consultar. Combinamos a cor com você pelo WhatsApp.</p>
         <div class="quantidade-linha">
           <span id="rot-qtd">Quantidade</span>
           <div class="contador-qtd" role="group" aria-labelledby="rot-qtd">
@@ -174,7 +172,10 @@ function telaProduto(id) {
             <button type="button" data-mais aria-label="Aumentar quantidade">+</button>
           </div>
         </div>
-        <button type="submit" class="botao botao-cheio">Adicionar ao carrinho</button>
+        <div class="pilha">
+          <button type="submit" class="botao botao-cheio" value="comprar">Enviar pedido</button>
+          <button type="submit" class="botao botao-borda" value="mais">Adicionar mais itens</button>
+        </div>
       </form>
     </div>`;
   const form = conteudo.querySelector('[data-form]');
@@ -184,15 +185,19 @@ function telaProduto(id) {
   const mostrarQtd = () => { saida.textContent = escolha.qtd; menos.disabled = escolha.qtd <= 1; mais.disabled = escolha.qtd >= QTD_MAX; };
   menos.addEventListener('click', () => { escolha.qtd = Math.max(1, escolha.qtd - 1); mostrarQtd(); });
   mais.addEventListener('click', () => { escolha.qtd = Math.min(QTD_MAX, escolha.qtd + 1); mostrarQtd(); });
-  form.addEventListener('change', e => { if (e.target.name === 'cor') escolha.cor = e.target.value; });
   form.addEventListener('submit', e => {
     e.preventDefault();
-    const igual = carrinho.find(i => i.id === p.id && i.cor === escolha.cor);
+    const igual = carrinho.find(i => i.id === p.id);
     if (igual) igual.qtd = Math.min(QTD_MAX, igual.qtd + escolha.qtd);
-    else carrinho.push({ id: p.id, cor: escolha.cor, qtd: escolha.qtd });
-    escolha = { id: null, cor: null, qtd: 1 };
+    else carrinho.push({ id: p.id, qtd: escolha.qtd });
+    const qtd = escolha.qtd;
+    escolha = { id: null, qtd: 1 };
     guardarCarrinho();
-    location.hash = '#/carrinho';
+    // "Enviar pedido" vai para o carrinho (nome, telefone e envio); "Adicionar mais itens" volta para a vitrine.
+    if (e.submitter?.value === 'mais') {
+      aviso = `${qtd > 1 ? `${qtd}× ` : ''}${p.nome} foi adicionado ao carrinho.`;
+      location.hash = '#/';
+    } else location.hash = '#/carrinho';
   });
   mostrarQtd();
 }
@@ -214,7 +219,7 @@ function telaCarrinho() {
         <div class="item-foto">${foto(p, false)}</div>
         <div>
           <div class="item-nome">${esc(p.nome)}</div>
-          ${i.cor ? `<div class="item-cor">Cor: ${esc(i.cor)}</div>` : ''}
+          <div class="item-cor">Cores a consultar</div>
           <div class="preco ${p.sob_consulta ? 'preco-consulta' : ''}">${p.sob_consulta ? 'Sob consulta' : brl(centavos(p.preco) * i.qtd / 100)}</div>
         </div>
         <div class="contador-qtd" role="group" aria-label="Quantidade de ${esc(p.nome)}">
@@ -224,6 +229,7 @@ function telaCarrinho() {
         </div>
       </li>`;
     }).join('')}</ul>
+    <a class="botao botao-borda botao-mais-itens" href="#/">+ Adicionar mais itens</a>
     <div class="resumo">
       <div class="resumo-total"><span>Total</span><span>${totalTexto}</span></div>
       ${consulta ? '<small class="nota-consulta">Peça(s) sob consulta: o valor é combinado no WhatsApp.</small>' : ''}

@@ -94,6 +94,15 @@ main { max-width: 1080px; margin: 0 auto; padding: 16px; }
 .botao-whats:hover { background: var(--verde-escuro); }
 .botao-whats[aria-disabled="true"] { background: #8D98A3; cursor: not-allowed; }
 .botao-texto { background: transparent; }
+.botao-borda { background: var(--papel); color: var(--azul-escuro); border: 2px solid var(--azul); min-height: 52px; width: 100%; font-size: 1rem; }
+.botao-borda:hover { background: var(--azul-claro); }
+.botao-mais-itens { margin-bottom: 14px; }
+.aviso-adicionado {
+  margin: 0 0 16px; padding: 12px 14px; border-radius: 12px; background: #DDF2EE; color: var(--verde-escuro); font-weight: 700;
+  display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; justify-content: space-between;
+}
+.aviso-adicionado a { color: var(--verde-escuro); font-weight: 900; }
+.cores-detalhe { margin: 0; padding: 10px 12px; border-radius: 10px; background: var(--papel); border: 1px solid var(--linha); font-size: .95rem; }
 .botao-texto:hover { background: var(--azul-claro); }
 
 /* Produto */

@@ -8,6 +8,7 @@ import { supabase, configurado } from '../supabase.js';
 import { ok } from '../db.js';
 import { esc, brl, lerDecimal, paraCampo } from '../format.js';
 import { cliqueForaDoDialogo } from '../ui/dialogo.js';
+import { recortarQuadrado } from '../ui/recorte.js';
 
 const PASTA = 'produtos';
 const filtro = { busca: '', situacao: 'ativos' };
@@ -400,7 +401,7 @@ function abrirFormulario(ctx, p) {
               <button type="button" class="botao-texto" data-tirar-foto ${p?.foto_path ? '' : 'hidden'}>Remover foto</button>
             </div>
           </div>
-          <small class="campo-dica">JPEG, PNG ou WebP. A foto é reduzida antes de enviar.</small>
+          <small class="campo-dica">JPEG, PNG ou WebP. Você enquadra a foto em quadrado e ela é reduzida antes de enviar.</small>
         </div>
 
         <div class="campo"><label for="p-nome">Nome</label>
@@ -499,7 +500,16 @@ function abrirFormulario(ctx, p) {
     if (!arquivo) return;
     erro.hidden = true;
     try {
-      const reduzida = await otimizarFoto(arquivo);
+      // A foto é enquadrada em quadrado antes da otimização (catálogo e Produtos mostram quadrada).
+      const quadrada = await recortarQuadrado(arquivo);
+      if (!quadrada) return;
+      // Enquanto a foto é preparada, "Salvar" fica bloqueado para não salvar sem ela.
+      const salvar = form.querySelector('[type="submit"]');
+      const textoSalvar = salvar.textContent;
+      salvar.disabled = true; salvar.textContent = 'Preparando foto…';
+      let reduzida;
+      try { reduzida = await otimizarFoto(quadrada); }
+      finally { salvar.disabled = false; salvar.textContent = textoSalvar; }
       if (fotoNova) URL.revokeObjectURL(fotoNova.url);
       fotoNova = { ...reduzida, url: URL.createObjectURL(reduzida.blob) };
       tirarFoto = false;
