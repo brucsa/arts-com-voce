@@ -510,6 +510,34 @@ button.atalho { background: var(--papel); font: inherit; font-weight: 700; text-
 @media (min-width: 900px) { .folha.folha-produto { width: min(720px, calc(100% - 32px)); } }
 .detalhe-dados .linha-dado strong { white-space: nowrap; overflow-wrap: normal; }
 
+/* ---------------------------------------------------------- Ficha de consumo e cores por parte (R93–R94) */
+.ficha-subtitulo { margin: 4px 0 0; font-weight: 800; font-size: .9rem; }
+.ficha-lista { display: grid; gap: 8px; }
+.ficha-lista:empty { display: none; }
+.ficha-linha {
+  display: grid; gap: 8px; align-items: end; padding: 10px; border-radius: var(--raio-p); background: var(--creme);
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr) auto;
+}
+.ficha-linha-outro { grid-template-columns: minmax(0, 3fr) minmax(0, 1fr) auto; }
+.ficha-linha .campo input, .ficha-linha .campo select { min-width: 0; width: 100%; }
+.ficha-adicionar { justify-self: start; }
+.ficha-total { margin: 0; font-weight: 700; color: var(--azul-escuro); }
+.ficha-total:empty { display: none; }
+.lista-ficha { list-style: none; margin: 0; padding: 0; }
+.lista-ficha li { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; border-bottom: 1px solid var(--linha); }
+.lista-ficha li span { color: var(--tinta-2); }
+.lista-ficha .ficha-total-linha strong { color: var(--azul-escuro); }
+.cores-partes { grid-column: 1 / -1; display: grid; gap: 8px; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); }
+.cores-partes[hidden] { display: none; }
+.cores-partes-titulo { grid-column: 1 / -1; margin: 0; font-weight: 700; font-size: .9rem; }
+.cores-partes .campo select { min-width: 0; width: 100%; }
+.partes-item { display: block; }
+@media (max-width: 599px) {
+  .ficha-linha { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; }
+  .ficha-linha .ficha-nome { grid-column: 1 / -1; }
+  .ficha-linha-outro { grid-template-columns: minmax(0, 1fr) auto; }
+}
+
 /* ---------------------------------------------------------- Pedidos Diretos Essencial (R76–R84) */
 .selo-pd-aguardando { background: var(--ambar-claro); color: var(--ambar-escuro); }
 .selo-pd-produzindo { background: var(--lilas-claro); color: var(--lilas-escuro); }

@@ -7,6 +7,8 @@
 // Recebimentos, devoluções e estornos entram no Caixa pelo próprio banco
 // (integração Pedidos Diretos → Caixa). A comissão do Joca é acertada pelo próprio
 // banco (R89–R92). Não mexe no estoque.
+// Cores por parte (R94): itens de produtos com ficha copiam as partes da ficha
+// (pelo banco) e a cor de cada parte é gravada por definir_cores_partes.
 
 import { supabase, configurado } from '../supabase.js';
 import { ok } from '../db.js';
@@ -66,13 +68,17 @@ function novaChave() {
 
 // ---------------------------------------------------------------- dados
 async function carregarCadastros(sb) {
-  const [clientes, produtos, filamentos] = await Promise.all([
+  const [clientes, produtos, filamentos, partes] = await Promise.all([
     sb.from('clientes').select('id, nome, contato, ativo').order('nome').then(ok),
     sb.from('vw_produtos').select('id, nome, preco_venda, ativo, cores').order('nome').then(ok),
     sb.from('materiais').select('id, tipo, variacao, ativo').eq('categoria', 'FILAMENTO')
       .order('tipo').order('variacao').then(ok),
+    // Ficha de consumo (R93). Antes do sql/14 a tabela não existe: sem cores por parte.
+    sb.from('produto_partes').select('produto_id, ordem, nome, gramas').order('ordem'),
   ]);
-  return { clientes, produtos, filamentos };
+  const comPartes = !partes.error;
+  produtos.forEach(x => { x.partes = comPartes ? partes.data.filter(y => y.produto_id === x.id) : []; });
+  return { clientes, produtos, filamentos, comPartes };
 }
 
 // ---------------------------------------------------------------- aba Diretos
@@ -268,6 +274,13 @@ async function abrirDetalhe(ctx, id) {
     return;
   }
   if (!p) return;
+  // Cores por parte (R94); antes do sql/14 a tabela não existe.
+  if (ctx.comPartes && itens.length) {
+    const { data, error } = await sb.from('item_venda_partes')
+      .select('id, item_id, ordem, nome, gramas, purga_g, material_id, cor_descricao')
+      .in('item_id', itens.map(i => i.id)).order('ordem');
+    if (!error) itens.forEach(i => { i.partes = data.filter(x => x.item_id === i.id); });
+  }
 
   const cancelado = p.status_pedido === 'CANCELADO';
   const liquido = num(p.valor_liquido);
@@ -280,6 +293,8 @@ async function abrirDetalhe(ctx, id) {
       <span class="linha-texto">
         <strong>${i.quantidade} × ${esc(i.descricao)}</strong>
         <span class="texto-secundario">${i.cor_descricao ? `${esc(i.cor_descricao)} · ` : ''}${i.produto_id ? 'Do catálogo' : 'Personalizado'} · ${num(i.preco_unitario) === 0 ? 'Brinde' : `${brl(i.preco_unitario)} cada`}</span>
+        ${i.partes?.length ? `<span class="texto-secundario partes-item">${i.partes.map(x =>
+          `${esc(x.nome)}: ${x.cor_descricao ? esc(x.cor_descricao) : '<em>cor a definir</em>'}`).join(' · ')}</span>` : ''}
       </span>
       <strong class="linha-valor">${brl(i.valor_item)}</strong>
     </li>`).join('');
@@ -607,6 +622,46 @@ function abrirFormularioPedido(ctx, existente) {
   const produtoPorId = id => produtos.find(x => x.id === id);
   const filamentoPorId = id => filamentos.find(x => x.id === id);
 
+  // ---- cores por parte (R94)
+  // Item já salvo com o mesmo produto: as partes copiadas para o pedido (podem
+  // ser nenhuma, em pedido antigo). Item novo ou produto trocado: a ficha atual.
+  const originais = new Map((existente?.itens || []).map(i => [i.id, i]));
+  function partesDoItem(el, produtoId) {
+    const salvo = el.dataset.id ? originais.get(el.dataset.id) : null;
+    if (salvo && salvo.produto_id === produtoId) return salvo.partes || [];
+    return produtoPorId(produtoId)?.partes || [];
+  }
+  function htmlCoresPartes(partes, produtoId) {
+    if (!partes.length) return '';
+    const cores = produtoPorId(produtoId)?.cores || [];
+    const doProduto = new Set(cores.map(c => c.material_id));
+    const opcoes = atual => {
+      const ativos = filamentos.filter(f => f.ativo || f.id === atual);
+      const grupo = (lista, rotulo) => (lista.length ? `<optgroup label="${rotulo}">${lista.map(f =>
+        `<option value="${f.id}" ${f.id === atual ? 'selected' : ''}>${esc(corDoFilamento(f))}${f.ativo ? '' : ' (inativo)'}</option>`).join('')}</optgroup>` : '');
+      return `<option value="">A definir</option>`
+        + grupo(ativos.filter(f => doProduto.has(f.id)), 'Cores do produto')
+        + grupo(ativos.filter(f => !doProduto.has(f.id)), doProduto.size ? 'Outros filamentos' : 'Filamentos');
+    };
+    return `<p class="cores-partes-titulo">Cor de cada parte</p>
+      ${partes.map(x => `<label class="campo campo-compacto"><span>${esc(x.nome)} <em>(${paraCampo(x.gramas, 0, 2)} g)</em></span>
+        <select data-cor-parte>${opcoes(x.material_id || null)}</select></label>`).join('')}`;
+  }
+  /** Mostra a cor única ou as cores por parte, conforme o produto do item. */
+  function ajustarCores(el) {
+    const caixa = el.querySelector('[data-cores-partes]');
+    const unica = el.querySelector('[data-cor-unica]');
+    const catalogo = el.querySelector('[data-tipo]').value === 'catalogo';
+    const produtoId = el.querySelector('[data-produto]').value || null;
+    const partes = catalogo && produtoId ? partesDoItem(el, produtoId) : [];
+    if (caixa.dataset.partesDe !== String(produtoId)) {
+      caixa.innerHTML = htmlCoresPartes(partes, produtoId);
+      caixa.dataset.partesDe = String(produtoId);
+    }
+    caixa.hidden = !partes.length;
+    unica.hidden = !catalogo || partes.length > 0;
+  }
+
   function htmlItem(item = {}) {
     // Item já salvo: é do catálogo só se tiver produto. Item novo: começa no
     // catálogo quando há produto ativo; senão, como personalizado.
@@ -630,7 +685,7 @@ function abrirFormularioPedido(ctx, existente) {
             <option value="">Escolha o produto</option>
             ${produtosOpcoes.map(x => `<option value="${x.id}" ${x.id === item.produto_id ? 'selected' : ''}>${esc(x.nome)}${x.ativo ? '' : ' (inativo)'}</option>`).join('')}
           </select></div>
-        <div class="campo" data-so="catalogo" ${catalogo ? '' : 'hidden'}><label>Cor <em>(opcional)</em></label>
+        <div class="campo" data-so="catalogo" data-cor-unica ${catalogo ? '' : 'hidden'}><label>Cor <em>(opcional)</em></label>
           <select data-cor-catalogo>
             <option value="">Sem cor definida</option>
             ${corAtualFora ? `<option value="${item.material_id}" selected>${esc(item.cor_descricao)} (cor anterior)</option>` : ''}
@@ -648,6 +703,8 @@ function abrirFormularioPedido(ctx, existente) {
           <input type="text" data-cor-texto maxlength="80" value="${esc(corTextoLivre ? item.cor_descricao : '')}" placeholder="Ex.: dourado" autocomplete="off" ${corTextoLivre ? '' : 'hidden'}
             aria-label="Cor escrita"></div>
 
+        <div class="cores-partes" data-cores-partes hidden></div>
+
         <div class="campo"><label>Quantidade</label>
           <input type="text" inputmode="numeric" data-qtd value="${item.quantidade ?? 1}" autocomplete="off"></div>
         <div class="campo"><label>Preço unitário (R$)</label>
@@ -663,6 +720,7 @@ function abrirFormularioPedido(ctx, existente) {
 
   function adicionarItem(item) {
     itensEl.insertAdjacentHTML('beforeend', htmlItem(item));
+    ajustarCores(itensEl.lastElementChild);
     atualizarResumo();
   }
 
@@ -675,10 +733,16 @@ function abrirFormularioPedido(ctx, existente) {
     const preco = precoTxt === '' ? NaN : lerDecimal(precoTxt, 2);
     const item = { quantidade: qtd, preco_unitario: preco };
     if (el.dataset.id) item.id = el.dataset.id;
-    let erro = '';
+    let erro = '', cores = null;
     if (tipo === 'catalogo') {
       item.produto_id = el.querySelector('[data-produto]').value || null;
       item.material_id = el.querySelector('[data-cor-catalogo]').value || null;
+      const caixa = el.querySelector('[data-cores-partes]');
+      if (!caixa.hidden) {
+        // Produto com ficha: as cores vão por parte (definir_cores_partes), não como cor única.
+        item.material_id = null;
+        cores = [...caixa.querySelectorAll('[data-cor-parte]')].map(x => x.value || null);
+      }
       if (!item.produto_id) erro = `Item ${n}: escolha o produto.`;
     } else {
       item.descricao = el.querySelector('[data-descricao]').value.trim();
@@ -690,7 +754,7 @@ function abrirFormularioPedido(ctx, existente) {
     if (!erro && (!Number.isFinite(qtd) || qtd < 1)) erro = `Item ${n}: a quantidade precisa ser um número inteiro, no mínimo 1.`;
     if (!erro && (!Number.isFinite(preco) || preco < 0)) erro = `Item ${n}: informe o preço unitário (R$ 0,00 para brinde).`;
     const valor = Number.isFinite(qtd) && Number.isFinite(preco) ? arred2(qtd * preco) : null;
-    return { item, erro, valor };
+    return { item, erro, valor, cores };
   }
 
   const lerValorCampo = nome => {
@@ -724,6 +788,7 @@ function abrirFormularioPedido(ctx, existente) {
       const catalogo = e.target.value === 'catalogo';
       el.querySelectorAll('[data-so="catalogo"]').forEach(x => { x.hidden = !catalogo; });
       el.querySelectorAll('[data-so="personalizado"]').forEach(x => { x.hidden = catalogo; });
+      ajustarCores(el);
     }
     if (e.target.matches('[data-produto]')) {
       // Troca de produto: cores do novo produto e preço do catálogo como sugestão (R79).
@@ -732,6 +797,7 @@ function abrirFormularioPedido(ctx, existente) {
       corSel.innerHTML = '<option value="">Sem cor definida</option>' + (prod ? prod.cores.map(c =>
         `<option value="${c.material_id}">${esc(corDoFilamento(c))}${c.ativo ? '' : ' (inativo)'}</option>`).join('') : '');
       el.querySelector('[data-preco]').value = prod && prod.preco_venda != null ? paraCampo(prod.preco_venda, 2, 2) : '';
+      ajustarCores(el);
     }
     if (e.target.matches('[data-cor-personalizado]')) {
       const texto = el.querySelector('[data-cor-texto]');
@@ -783,9 +849,10 @@ function abrirFormularioPedido(ctx, existente) {
 
     const blocos = [...itensEl.querySelectorAll('[data-item]')];
     if (!blocos.length) falta('itens', 'O pedido precisa ter pelo menos um item (do catálogo ou personalizado).');
-    const itens = [];
+    const itens = [], coresPartes = [];
     blocos.forEach((el, i) => {
-      const { item, erro } = lerItem(el, i + 1);
+      const { item, erro, cores } = lerItem(el, i + 1);
+      if (cores) coresPartes.push({ ordem: i + 1, cores });
       const campoErro = el.querySelector('[data-erro-item]');
       campoErro.textContent = erro; campoErro.hidden = !erro;
       if (erro) valido = false;
@@ -833,8 +900,17 @@ function abrirFormularioPedido(ctx, existente) {
         p_observacao: form.obs.value.trim() || null,
         p_itens: itens,
       }).then(ok);
+      let feito = editando ? `Pedido ${numeroPedido(r.numero)} atualizado.` : `Pedido ${numeroPedido(r.numero)} cadastrado.`;
+      // Cores por parte (R94): o banco já copiou as partes da ficha; aqui grava as cores escolhidas.
+      if (coresPartes.length) {
+        try {
+          await sb.rpc('definir_cores_partes', { p_venda_id: r.id, p_itens: coresPartes }).then(ok);
+        } catch (err) {
+          feito = `Pedido ${numeroPedido(r.numero)} salvo, mas as cores das partes não foram gravadas (${err.message}). Abra o pedido e tente de novo.`;
+        }
+      }
       fechar();
-      await recarregar(editando ? `Pedido ${numeroPedido(r.numero)} atualizado.` : `Pedido ${numeroPedido(r.numero)} cadastrado.`, r.id);
+      await recarregar(feito, r.id);
     } catch (err) {
       erroGeral.textContent = err.message;
       erroGeral.hidden = false;

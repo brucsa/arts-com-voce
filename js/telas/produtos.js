@@ -2,6 +2,7 @@
 // Regras: R71–R75 (especificação v1.3).
 // Grava só pelas funções salvar_produto, definir_produto_ativo e excluir_produto.
 // Catálogo público (R85–R88): as marcações são gravadas por definir_produto_catalogo.
+// Ficha de consumo (R93): partes e outros materiais, gravados por salvar_ficha_produto.
 // Fotos: pasta privada "produtos" do Storage, vistas por links temporários.
 
 import { supabase, configurado } from '../supabase.js';
@@ -27,6 +28,46 @@ const normal = s => String(s || '').trim().toLocaleLowerCase('pt-BR')
   .normalize('NFD').replace(/[̀-ͯ]/g, '');
 
 const corTexto = c => `${c.tipo} · ${c.cor}`;
+
+const gramas = v => `${paraCampo(v, 0, 2)} g`;
+const nomeMaterial = m => (m ? `${m.tipo}${m.variacao ? ` · ${m.variacao}` : ''}` : 'Material');
+const plural = (n, um, varios) => `${n} ${n === 1 ? um : varios}`;
+
+/**
+ * Ficha de consumo (R93). Antes do sql/14 as tabelas não existem: devolve
+ * null e as telas continuam funcionando, só sem a ficha.
+ */
+async function carregarFichas(sb, produtos) {
+  const [partes, outros] = await Promise.all([
+    sb.from('produto_partes').select('produto_id, ordem, nome, gramas, purga_g').order('ordem'),
+    sb.from('produto_materiais').select('produto_id, material_id, quantidade'),
+  ]);
+  if (partes.error || outros.error) {
+    produtos.forEach(p => Object.assign(p, { partes: [], outros: [] }));
+    return null;
+  }
+  const materiais = await sb.from('materiais').select('id, categoria, tipo, variacao, unidade, ativo')
+    .in('categoria', ['INSUMO', 'EMBALAGEM']).order('tipo').order('variacao').then(ok);
+  produtos.forEach(p => {
+    p.partes = partes.data.filter(x => x.produto_id === p.id);
+    p.outros = outros.data.filter(x => x.produto_id === p.id)
+      .map(x => ({ ...x, material: materiais.find(m => m.id === x.material_id) }));
+  });
+  return { materiais };
+}
+
+/** Ficha no detalhe do produto: partes, total por peça e outros materiais. */
+function htmlFicha(p) {
+  if (!p.partes.length && !p.outros.length) return '';
+  const peca = p.partes.reduce((t, x) => t + Number(x.gramas), 0);
+  const purga = p.partes.reduce((t, x) => t + Number(x.purga_g), 0);
+  return `<p class="detalhe-titulo">Ficha de consumo <span class="texto-secundario">(por peça)</span></p>
+    <ul class="lista-ficha">
+      ${p.partes.map(x => `<li><span>${esc(x.nome)}</span><strong>${gramas(x.gramas)}${Number(x.purga_g) ? ` + ${gramas(x.purga_g)} de purga` : ''}</strong></li>`).join('')}
+      ${p.partes.length > 1 ? `<li class="ficha-total-linha"><span>Total de filamento</span><strong>${gramas(peca + purga)}</strong></li>` : ''}
+      ${p.outros.map(x => `<li><span>${esc(nomeMaterial(x.material))}</span><strong>${paraCampo(x.quantidade, 0, 3)} ${esc(x.material?.unidade || '')}</strong></li>`).join('')}
+    </ul>`;
+}
 
 function dimensoesTexto(p) {
   const v = [p.altura_cm, p.largura_cm, p.profundidade_cm];
@@ -195,7 +236,8 @@ async function desenhar(area, recarregar, mensagem) {
   const marcas = await sb.from('produtos').select('id, no_catalogo, personalizado')
     .then(({ data, error }) => (error ? null : Object.fromEntries((data || []).map(m => [m.id, m]))));
   if (marcas) produtos.forEach(p => Object.assign(p, { no_catalogo: false, personalizado: false }, marcas[p.id] || {}));
-  const contexto = { sb, produtos, filamentos, fotos, recarregar, catalogo: !!marcas };
+  const ficha = await carregarFichas(sb, produtos);
+  const contexto = { sb, produtos, filamentos, fotos, recarregar, catalogo: !!marcas, ficha };
 
   area.innerHTML = `
     <section class="cartao filtros filtros-produtos">
@@ -297,6 +339,7 @@ function cartaoProduto(p, url) {
       <span class="produto-linha">
         ${p.sem_preco ? '<span class="selo-p selo-sem-preco">Sem preço</span>' : `<strong class="produto-preco">${brl(p.preco_venda)}</strong>`}
         ${tempo ? `<span class="produto-tempo"><i class="ti ti-clock" aria-hidden="true"></i> ${tempo}</span>` : ''}
+        ${p.partes?.length ? `<span class="produto-tempo"><i class="ti ti-puzzle" aria-hidden="true"></i> ${plural(p.partes.length, 'parte', 'partes')}</span>` : ''}
       </span>
       ${chipsCores(p.cores, 3)}
     </span>
@@ -349,7 +392,7 @@ function abrirFolha(html, { larga = false, rotulo }) {
 }
 
 function abrirDetalhe(ctx, p) {
-  const { sb, fotos, recarregar, catalogo } = ctx;
+  const { sb, fotos, recarregar, catalogo, ficha } = ctx;
   const tempo = tempoTexto(p.tempo_impressao_min);
   const dims = dimensoesTexto(p);
   const linha = (rotulo, valor) => (valor ? `<div class="linha-dado"><span>${rotulo}</span><strong>${valor}</strong></div>` : '');
@@ -369,6 +412,7 @@ function abrirDetalhe(ctx, p) {
         ${linha('Dimensões (A × L × P)', dims)}
         ${catalogo ? linha('Catálogo público', esc(situacaoCatalogo(p))) : ''}
         ${p.cores.length ? `<p class="detalhe-titulo">Cores</p>${chipsCores(p.cores)}` : ''}
+        ${ficha ? htmlFicha(p) : ''}
       </div>
     </div>
     <p class="aviso aviso-erro" role="alert" hidden></p>
@@ -404,8 +448,11 @@ function abrirDetalhe(ctx, p) {
 }
 
 function abrirFormulario(ctx, p) {
-  const { sb, produtos, filamentos, fotos, recarregar, catalogo } = ctx;
+  const { sb, produtos, filamentos, fotos, recarregar, catalogo, ficha } = ctx;
   const editando = !!p;
+  // Outros materiais da ficha: insumos e embalagens ativos + os inativos que já estão nela.
+  const noProduto = new Set((p?.outros || []).map(x => x.material_id));
+  const opcoesOutros = ficha ? ficha.materiais.filter(m => m.ativo || noProduto.has(m.id)) : [];
   const ligadas = new Set((p?.cores || []).map(c => c.material_id));
   // Filamentos ativos + os inativos que já estão neste produto (R72).
   const opcoesCor = filamentos.filter(f => f.ativo || ligadas.has(f.id));
@@ -450,6 +497,20 @@ function abrirFormulario(ctx, p) {
               <span>${esc(f.tipo)} · ${esc(f.variacao)}${f.ativo ? '' : ' (inativo)'}</span></label>`).join('')}</div>`
             : '<p class="campo-dica">Nenhum filamento ativo. Cadastre filamentos em Configurações → Materiais.</p>'}
         </fieldset>
+
+        ${ficha ? `<fieldset class="itens-compra ficha-consumo">
+          <legend>Ficha de consumo <em>(opcional)</em></legend>
+          <p class="campo-dica">Quanto cada peça gasta. A ficha não guarda cor: a cor de cada parte é escolhida no pedido.</p>
+          <p class="ficha-subtitulo">Partes impressas</p>
+          <div class="ficha-lista" data-partes></div>
+          <button type="button" class="botao-texto ficha-adicionar" data-add-parte><i class="ti ti-plus" aria-hidden="true"></i> Adicionar parte</button>
+          <p class="ficha-subtitulo">Outros materiais <span class="texto-secundario">(insumos e embalagem de entrega)</span></p>
+          <div class="ficha-lista" data-outros></div>
+          ${opcoesOutros.length
+            ? '<button type="button" class="botao-texto ficha-adicionar" data-add-outro><i class="ti ti-plus" aria-hidden="true"></i> Adicionar material</button>'
+            : '<p class="campo-dica">Nenhum insumo ou embalagem ativo. Cadastre em Configurações → Materiais.</p>'}
+          <p class="ficha-total" data-total-ficha aria-live="polite"></p>
+        </fieldset>` : ''}
 
         <div class="grade-produto">
           <fieldset class="itens-compra">
@@ -526,6 +587,101 @@ function abrirFormulario(ctx, p) {
   form.elements.nome.addEventListener('input', conferirNome);
   conferirNome();
 
+  // ---- ficha de consumo (R93)
+  const partesEl = dialog.querySelector('[data-partes]');
+  const outrosEl = dialog.querySelector('[data-outros]');
+  const totalFicha = dialog.querySelector('[data-total-ficha]');
+  const linhaParte = (x = {}) => `
+    <div class="ficha-linha" data-parte>
+      <label class="campo campo-compacto ficha-nome"><span>Parte</span>
+        <input type="text" data-nome maxlength="60" value="${esc(x.nome || '')}" placeholder="Ex.: Flor" autocomplete="off"></label>
+      <label class="campo campo-compacto"><span>Peça (g)</span>
+        <input type="text" inputmode="decimal" data-g value="${x.gramas != null ? paraCampo(x.gramas, 0, 2) : ''}" placeholder="0" autocomplete="off"></label>
+      <label class="campo campo-compacto"><span>Purga (g)</span>
+        <input type="text" inputmode="decimal" data-purga value="${x.purga_g != null && Number(x.purga_g) ? paraCampo(x.purga_g, 0, 2) : ''}" placeholder="0" autocomplete="off"></label>
+      <button type="button" class="botao-icone" data-remover-linha aria-label="Remover parte"><i class="ti ti-trash" aria-hidden="true"></i></button>
+    </div>`;
+  const linhaOutro = (x = {}) => `
+    <div class="ficha-linha ficha-linha-outro" data-outro>
+      <label class="campo campo-compacto ficha-nome"><span>Material</span>
+        <select data-material>
+          <option value="">Escolha</option>
+          ${opcoesOutros.map(m => `<option value="${m.id}" ${m.id === x.material_id ? 'selected' : ''}>${m.categoria === 'EMBALAGEM' ? 'Embalagem' : 'Insumo'} · ${esc(nomeMaterial(m))} (${esc(m.unidade)})${m.ativo ? '' : ' (inativo)'}</option>`).join('')}
+        </select></label>
+      <label class="campo campo-compacto"><span>Quantidade</span>
+        <input type="text" inputmode="decimal" data-qtd value="${x.quantidade != null ? paraCampo(x.quantidade, 0, 3) : ''}" placeholder="1" autocomplete="off"></label>
+      <button type="button" class="botao-icone" data-remover-linha aria-label="Remover material"><i class="ti ti-trash" aria-hidden="true"></i></button>
+    </div>`;
+
+  /** Lê a ficha da tela. Devolve { partes, materiais } ou lança o erro para mostrar. */
+  function lerFicha() {
+    const partes = [], materiais = [], nomes = new Set(), mats = new Set();
+    [...partesEl.querySelectorAll('[data-parte]')].forEach((el, i) => {
+      const nome = el.querySelector('[data-nome]').value.trim();
+      const gTxt = el.querySelector('[data-g]').value.trim();
+      const pTxt = el.querySelector('[data-purga]').value.trim();
+      if (!nome && !gTxt && !pTxt) return;                       // linha vazia é ignorada
+      const rot = `Ficha, parte ${i + 1}`;
+      if (!nome) throw new Error(`${rot}: informe o nome da parte (ex.: Flor, Vaso).`);
+      if (nomes.has(normal(nome))) throw new Error(`${rot}: já existe uma parte "${nome}".`);
+      nomes.add(normal(nome));
+      const g = lerDecimal(gTxt, 2);
+      if (!Number.isFinite(g) || g <= 0) throw new Error(`${rot} (${nome}): informe os gramas da peça, maior que zero.`);
+      const purga = pTxt ? lerDecimal(pTxt, 2) : 0;
+      if (!Number.isFinite(purga) || purga < 0) throw new Error(`${rot} (${nome}): a purga precisa ser zero ou mais gramas.`);
+      partes.push({ nome, gramas: String(g), purga_g: String(purga) });
+    });
+    [...outrosEl.querySelectorAll('[data-outro]')].forEach((el, i) => {
+      const id = el.querySelector('[data-material]').value;
+      const qTxt = el.querySelector('[data-qtd]').value.trim();
+      if (!id && !qTxt) return;
+      const rot = `Ficha, material ${i + 1}`;
+      if (!id) throw new Error(`${rot}: escolha o material.`);
+      if (mats.has(id)) throw new Error(`${rot}: o mesmo material aparece duas vezes.`);
+      mats.add(id);
+      const q = lerDecimal(qTxt, 3);
+      if (!Number.isFinite(q) || q <= 0) throw new Error(`${rot}: informe a quantidade por peça, maior que zero.`);
+      materiais.push({ material_id: id, quantidade: String(q) });
+    });
+    return { partes, materiais };
+  }
+  const fichaOriginal = JSON.stringify({
+    partes: (p?.partes || []).map(x => ({ nome: x.nome, gramas: String(Number(x.gramas)), purga_g: String(Number(x.purga_g)) })),
+    materiais: (p?.outros || []).map(x => ({ material_id: x.material_id, quantidade: String(Number(x.quantidade)) })),
+  });
+  function atualizarTotalFicha() {
+    if (!totalFicha) return;
+    let peca = 0, purga = 0;
+    partesEl.querySelectorAll('[data-parte]').forEach(el => {
+      const g = lerDecimal(el.querySelector('[data-g]').value, 2);
+      const pg = lerDecimal(el.querySelector('[data-purga]').value, 2);
+      if (Number.isFinite(g)) peca += g;
+      if (Number.isFinite(pg)) purga += pg;
+    });
+    totalFicha.textContent = peca || purga
+      ? `Filamento por peça: ${gramas(peca)} de peça + ${gramas(purga)} de purga = ${gramas(peca + purga)}` : '';
+  }
+  if (ficha) {
+    (p?.partes || []).forEach(x => partesEl.insertAdjacentHTML('beforeend', linhaParte(x)));
+    (p?.outros || []).forEach(x => outrosEl.insertAdjacentHTML('beforeend', linhaOutro(x)));
+    atualizarTotalFicha();
+    dialog.querySelector('[data-add-parte]').addEventListener('click', () => {
+      partesEl.insertAdjacentHTML('beforeend', linhaParte());
+      partesEl.lastElementChild.querySelector('input').focus();
+    });
+    dialog.querySelector('[data-add-outro]')?.addEventListener('click', () => {
+      outrosEl.insertAdjacentHTML('beforeend', linhaOutro());
+      outrosEl.lastElementChild.querySelector('select').focus();
+    });
+    dialog.querySelector('.ficha-consumo').addEventListener('click', e => {
+      const b = e.target.closest('[data-remover-linha]');
+      if (!b) return;
+      b.closest('.ficha-linha').remove();
+      atualizarTotalFicha();
+    });
+    partesEl.addEventListener('input', atualizarTotalFicha);
+  }
+
   dialog.querySelector('[data-arquivo]').addEventListener('change', async e => {
     const arquivo = e.target.files[0];
     e.target.value = '';
@@ -578,7 +734,7 @@ function abrirFormulario(ctx, p) {
     e.preventDefault();
     erro.hidden = true;
     const nome = form.elements.nome.value.trim();
-    let dados;
+    let dados, novaFicha = null;
     try {
       if (!nome) { form.elements.nome.focus(); throw new Error('Informe o nome do produto.'); }
       const h = lerInteiro('horas', 'Horas');
@@ -598,6 +754,8 @@ function abrirFormulario(ctx, p) {
         p_preco_venda: lerOpcional('preco', 'Preço de venda'),
         p_cores: [...form.querySelectorAll('[name="cores"]:checked')].map(c => c.value),
       };
+      // A ficha é conferida antes de salvar, para não gravar o produto sem ela.
+      if (ficha) novaFicha = lerFicha();
     } catch (err) { falhar(err.message); return; }
 
     const botao = form.querySelector('[type="submit"]');
@@ -629,6 +787,14 @@ function abrirFormulario(ctx, p) {
           } catch (err) {
             feito = `"${nome}" foi salvo, mas as marcações do catálogo não foram gravadas (${err.message}). Abra o produto e tente de novo.`;
           }
+        }
+      }
+      // 5. Ficha de consumo (R93), só quando mudou.
+      if (novaFicha && JSON.stringify(novaFicha) !== fichaOriginal) {
+        try {
+          await sb.rpc('salvar_ficha_produto', { p_produto_id: r.id, p_partes: novaFicha.partes, p_materiais: novaFicha.materiais }).then(ok);
+        } catch (err) {
+          feito = `"${nome}" foi salvo, mas a ficha de consumo não foi gravada (${err.message}). Abra o produto e tente de novo.`;
         }
       }
       fechar();
