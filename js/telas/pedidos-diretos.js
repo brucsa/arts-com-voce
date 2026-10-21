@@ -6,7 +6,8 @@
 // valem no banco; aqui a tela só ajuda e mostra as mensagens dele.
 // Recebimentos, devoluções e estornos entram no Caixa pelo próprio banco
 // (integração Pedidos Diretos → Caixa). A comissão do Joca é acertada pelo próprio
-// banco (R89–R92). Não mexe no estoque.
+// banco (R89–R92). A produção, as peças prontas e a embalagem mexem no estoque
+// pelo banco (R95–R100); aqui o detalhe mostra o andamento, o custo e o lucro.
 // Cores por parte (R94): itens de produtos com ficha copiam as partes da ficha
 // (pelo banco) e a cor de cada parte é gravada por definir_cores_partes.
 
@@ -16,6 +17,7 @@ import { esc, brl, dataBR, dataHoraBR, hojeISO, lerDecimal, paraCampo, arred2 } 
 import { cliqueForaDoDialogo } from '../ui/dialogo.js';
 import { abrirFormulario } from '../ui/formulario.js';
 import { FORMAS, ROTULO_FORMA } from '../financeiro.js';
+import { abrirRegistroProducao, abrirUsarPecaPronta } from './producao.js';
 
 // ---------------------------------------------------------------- nomes
 export const STATUS = {
@@ -281,12 +283,42 @@ async function abrirDetalhe(ctx, id) {
       .in('item_id', itens.map(i => i.id)).order('ordem');
     if (!error) itens.forEach(i => { i.partes = data.filter(x => x.item_id === i.id); });
   }
+  // Produção (R95–R100); antes do sql/16 as consultas não existem.
+  let custos = null, lotesProntos = [];
+  if (ctx.comPartes) {
+    const [prod, cst, lot] = await Promise.all([
+      sb.from('vw_itens_producao').select('item_id, produzidas, de_estoque, faltam').eq('venda_id', id),
+      sb.from('vw_pedido_custos').select('*').eq('venda_id', id),
+      sb.from('vw_pecas_prontas').select('produto_id, saldo').gt('saldo', 0),
+    ]);
+    if (!prod.error && !cst.error && !lot.error) {
+      itens.forEach(i => { i.producao = prod.data.find(x => x.item_id === i.id) || null; });
+      custos = cst.data[0] || null;
+      lotesProntos = lot.data;
+    }
+  }
 
   const cancelado = p.status_pedido === 'CANCELADO';
   const liquido = num(p.valor_liquido);
   const podeReceber = !cancelado && num(p.total) > 0 && num(p.saldo) > 0;
   const podeDevolver = liquido > 0;
   const linha = (rotulo, valor, classe = '') => (valor ? `<div class="linha-dado ${classe}"><span>${rotulo}</span><strong>${valor}</strong></div>` : '');
+
+  const produzivel = ['AGUARDANDO', 'PRODUZINDO', 'PRONTO'].includes(p.status_pedido);
+  const producaoItem = i => {
+    if (!i.producao) return '';
+    const pr = i.producao;
+    const feito = pr.produzidas + pr.de_estoque;
+    const texto = pr.faltam === 0
+      ? `<span class="selo-p selo-ativo">Pronto</span>${pr.de_estoque ? ` ${pr.de_estoque} do estoque de prontas` : ''}`
+      : `<span class="selo-p selo-despesa">Falta produzir ${pr.faltam}</span>${feito ? ` ${feito} de ${i.quantidade} pronta(s)` : ''}`;
+    const botoes = produzivel && pr.faltam > 0 ? `
+      <span class="linha-acoes acoes-item">
+        ${p.status_pedido !== 'PRONTO' ? `<button type="button" class="botao botao-pequeno" data-produzir="${i.id}"><i class="ti ti-printer" aria-hidden="true"></i> Registrar produção</button>` : ''}
+        ${i.produto_id && lotesProntos.some(l => l.produto_id === i.produto_id) ? `<button type="button" class="botao botao-pequeno" data-usar-pronta="${i.id}">Usar peça pronta</button>` : ''}
+      </span>` : '';
+    return `<span class="texto-secundario producao-item">${texto}</span>${botoes}`;
+  };
 
   const itensHtml = itens.map(i => `
     <li class="linha">
@@ -295,6 +327,7 @@ async function abrirDetalhe(ctx, id) {
         <span class="texto-secundario">${i.cor_descricao ? `${esc(i.cor_descricao)} · ` : ''}${i.produto_id ? 'Do catálogo' : 'Personalizado'} · ${num(i.preco_unitario) === 0 ? 'Brinde' : `${brl(i.preco_unitario)} cada`}</span>
         ${i.partes?.length ? `<span class="texto-secundario partes-item">${i.partes.map(x =>
           `${esc(x.nome)}: ${x.cor_descricao ? esc(x.cor_descricao) : '<em>cor a definir</em>'}`).join(' · ')}</span>` : ''}
+        ${producaoItem(i)}
       </span>
       <strong class="linha-valor">${brl(i.valor_item)}</strong>
     </li>`).join('');
@@ -368,6 +401,16 @@ async function abrirDetalhe(ctx, id) {
     <p class="detalhe-titulo">Itens</p>
     <ul class="lista">${itensHtml}</ul>
 
+    ${custos ? `<p class="detalhe-titulo">Custo e lucro <span class="texto-secundario">(estimativa, só você vê)</span></p>
+    <div class="detalhe-dados custos-pedido">
+      ${linha('Produtos − desconto', brl(custos.receita))}
+      ${linha('Custo de produção', `− ${brl(num(custos.custo_producao) + num(custos.custo_pecas_prontas))}`)}
+      ${num(custos.custo_embalagem) ? linha('Embalagem', `− ${brl(custos.custo_embalagem)}`) : ''}
+      ${linha('Comissão do Joca', `− ${brl(custos.comissao_joca)}`)}
+      ${linha('Lucro estimado', brl(custos.lucro_estimado), 'linha-destaque')}
+      <p class="campo-dica">${custos.falta_produzir ? 'Ainda falta produzir: o custo vai aumentar. ' : ''}Frete fora. Não muda o Caixa.</p>
+    </div>` : ''}
+
     <p class="detalhe-titulo">Status</p>
     ${statusHtml}
 
@@ -389,6 +432,13 @@ async function abrirDetalhe(ctx, id) {
   const erro = dialog.querySelector('.aviso-erro');
   const falhar = msg => { erro.textContent = msg; erro.hidden = false; erro.scrollIntoView({ block: 'nearest' }); };
   const depois = async msg => { fechar(); await recarregar(msg, p.id); };
+
+  dialog.querySelectorAll('[data-produzir]').forEach(b => b.addEventListener('click', async () => {
+    try { await abrirRegistroProducao(sb, { itemId: b.dataset.produzir, aoConcluir: depois }); } catch (err) { falhar(err.message); }
+  }));
+  dialog.querySelectorAll('[data-usar-pronta]').forEach(b => b.addEventListener('click', async () => {
+    try { await abrirUsarPecaPronta(sb, { itemId: b.dataset.usarPronta, aoConcluir: depois }); } catch (err) { falhar(err.message); }
+  }));
 
   dialog.querySelectorAll('[data-status]').forEach(b => b.addEventListener('click', async () => {
     dialog.querySelectorAll('[data-status]').forEach(x => { x.disabled = true; });

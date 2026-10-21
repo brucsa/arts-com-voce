@@ -15,6 +15,7 @@ import { telaShopee } from './telas/shopee.js';
 import { telaPedidos, mostrarPedidoDireto } from './telas/pedidos.js';
 import { abrirNovoPedido } from './telas/pedidos-diretos.js';
 import { telaProdutos } from './telas/produtos.js';
+import { telaProducao } from './telas/producao.js';
 import { abrirNovoGasto, oferecerGastoDosOutros } from './telas/gastos.js';
 import { abrirNovaCompra } from './telas/compra.js';
 
@@ -255,6 +256,7 @@ function rotearAdmin() {
   else if (rota === 'gastos') telaGastos(conteudo);
   else if (rota === 'caixa') telaCaixa(conteudo);
   else if (rota === 'estoque') telaEstoque(conteudo);
+  else if (rota === 'producao') telaProducao(conteudo);
   else if (rota === 'shopee') telaShopee(conteudo);
   else if (rota === 'joca') telaJoca(conteudo);
   else telaEmConstrucao(conteudo, { tela });

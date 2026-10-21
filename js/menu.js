@@ -73,8 +73,8 @@ export const ROTA_INICIAL = 'pedidos';
 // Menu principal (no celular, aparece dentro de "Mais"; a barra inferior não muda).
 export const MENU_PRINCIPAL = ['pedidos', 'produtos', 'caixa', 'joca'];
 // Grupo "Mais": telas prontas que ficam fora do menu principal.
-export const MENU_MAIS = ['gastos', 'estoque', 'configuracoes'];
-// As demais telas (Início, Vendas, Produção, Canais, Relatórios,
+export const MENU_MAIS = ['gastos', 'estoque', 'producao', 'configuracoes'];
+// As demais telas (Início, Vendas, Canais, Relatórios,
 // Fechamento e Pedidos da Shopee como tela própria) ficam fora do menu, mas
 // continuam abrindo pelo endereço. A Shopee aparece na aba Shopee de Pedidos.
 

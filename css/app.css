@@ -599,3 +599,17 @@ button.atalho { background: var(--papel); font: inherit; font-weight: 700; text-
 .linha-botao:hover { background: var(--creme); }
 .linha-botao:focus-visible { outline: 3px solid var(--ambar); outline-offset: -3px; }
 .acoes-caixa .texto-secundario { align-self: center; }
+
+/* ---------------------------------------------------------- Produção Essencial (R95–R100) */
+.metrica-perda { background: var(--erro-claro); color: var(--erro); }
+@media (min-width: 900px) { .folha.folha-producao { width: min(760px, calc(100% - 32px)); } }
+.folha-producao .grade-form { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+.folha-producao .campo[hidden] { display: none; }
+.linha-consumo .campo-fixo { background: var(--creme); border-style: dashed; }
+.linha-consumo [data-sem-purga] { opacity: .45; }
+.detalhes-secao { margin-top: 10px; }
+.detalhes-secao summary { cursor: pointer; font-weight: 700; padding: 6px 0; color: var(--azul-escuro); }
+.linha-total { border-top: 2px solid var(--linha-forte); }
+.producao-item { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 2px; }
+.acoes-item { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.custos-pedido .linha-dado span { color: var(--tinta-2); }

@@ -1,5 +1,5 @@
 // Etapa 3 · Estoque de materiais (só Admin)
-// Regras: R12, R40, R49 a R55.
+// Regras: R12, R40, R49 a R55. Ajuste de inventário: R99 (sql/16), por ajustar_estoque.
 
 import { supabase, configurado } from '../supabase.js';
 import { ok } from '../db.js';
@@ -7,6 +7,7 @@ import { esc, brl, dataBR, hojeISO } from '../format.js';
 import { abrirFormulario } from '../ui/formulario.js';
 import { abrirNovaCompra } from './compra.js';
 import { oferecerGastoDosOutros } from './gastos.js';
+import { novaChave } from './producao.js';
 import { CATEGORIA_MATERIAL, nomeMaterial, nomeMaterialHtml, quantidade, custoUnitario } from '../estoque-util.js';
 
 export function telaEstoque(el) {
@@ -37,6 +38,8 @@ async function desenhar(area, recarregar) {
       .order('data', { ascending: false }).order('created_at', { ascending: false }).then(ok),
   ]);
 
+  // Ajuste de inventário (R99): só depois da instalação da produção (sql/16).
+  const comAjuste = !(await sb.from('ajustes_estoque').select('id').limit(1)).error;
   const visiveis = estoque.filter(m => m.ativo || Number(m.quantidade) > 0);
   const valorTotal = estoque.reduce((t, m) => t + Number(m.valor), 0);
   const baixos = visiveis.filter(m => m.estoque_baixo);
@@ -74,7 +77,10 @@ async function desenhar(area, recarregar) {
               <span class="texto-secundario">Custo médio: ${custoUnitario(m.custo_medio, m.unidade)}</span>
               <span class="texto-secundario">${m.estoque_minimo !== null ? `Mínimo: ${quantidade(m.estoque_minimo, m.unidade)}` : 'Sem mínimo definido'} · Valor: ${brl(m.valor)}</span>
             </div>
-            <span class="linha-valor ${m.estoque_baixo ? 'valor-alerta' : ''}">${quantidade(m.quantidade, m.unidade)}</span>
+            <div class="linha-direita">
+              <span class="linha-valor ${m.estoque_baixo ? 'valor-alerta' : ''}">${quantidade(m.quantidade, m.unidade)}</span>
+              ${comAjuste ? `<button class="botao botao-pequeno" data-ajustar="${m.material_id}">Ajustar</button>` : ''}
+            </div>
           </li>`).join('')}</ul>` : `<p class="texto-secundario vazio">${info.vazio}. Cadastre em Configurações → Materiais.</p>`}
       </section>`;
     }).join('')}
@@ -99,6 +105,31 @@ async function desenhar(area, recarregar) {
     const p = document.querySelector('.painel-area .aviso-ok');
     if (p) { p.textContent = texto; p.hidden = false; setTimeout(() => { p.hidden = true; }, 4000); }
   };
+
+  area.querySelectorAll('[data-ajustar]').forEach(b => b.addEventListener('click', () => {
+    const m = estoque.find(x => x.material_id === b.dataset.ajustar);
+    const chave = novaChave();
+    abrirFormulario({
+      titulo: `Ajustar estoque · ${nomeMaterial(m)}`,
+      textoSalvar: 'Ajustar',
+      valores: { data: hojeISO() },
+      campos: [
+        { nome: 'contada', rotulo: `Quantidade real, depois de pesar ou contar (${m.unidade})`, tipo: 'decimal', casas: 3, obrigatorio: true, min: 0,
+          dica: `No sistema: ${quantidade(m.quantidade, m.unidade)}. Sobra entra pelo custo médio; falta sai como perda.` },
+        { nome: 'motivo', rotulo: 'Motivo', tipo: 'texto', obrigatorio: true, placeholder: 'Ex.: pesei o rolo' },
+        { nome: 'data', rotulo: 'Data', tipo: 'data', obrigatorio: true, maxData: hojeISO() },
+      ],
+      async aoSalvar(v) {
+        if (v.contada === Number(m.quantidade)) throw new Error('O saldo já é esse. Nada a ajustar.');
+        const r = await sb.rpc('ajustar_estoque', { p_material_id: m.material_id, p_quantidade_contada: v.contada,
+          p_motivo: v.motivo, p_data: v.data, p_chave: chave }).then(ok);
+        await recarregar();
+        avisar(Number(r.diferenca) > 0
+          ? `Ajuste registrado: entraram ${quantidade(r.diferenca, m.unidade)} (${brl(r.valor)}).`
+          : `Ajuste registrado: saíram ${quantidade(-r.diferenca, m.unidade)} como perda (${brl(r.valor)}).`);
+      },
+    });
+  }));
 
   area.querySelector('[data-compra]').addEventListener('click', () => {
     abrirNovaCompra({
