@@ -6,6 +6,7 @@ import { telaLogin } from './telas/login.js';
 import { telaEmConstrucao } from './telas/em-construcao.js';
 import { telaInicio } from './telas/inicio.js';
 import { telaJocaPessoal } from './telas/joca-pessoal.js';
+import { telaJoca } from './telas/joca.js';
 import { telaConfiguracoes } from './telas/configuracoes.js';
 import { telaGastos } from './telas/gastos.js';
 import { telaCaixa } from './telas/caixa.js';
@@ -255,6 +256,7 @@ function rotearAdmin() {
   else if (rota === 'caixa') telaCaixa(conteudo);
   else if (rota === 'estoque') telaEstoque(conteudo);
   else if (rota === 'shopee') telaShopee(conteudo);
+  else if (rota === 'joca') telaJoca(conteudo);
   else telaEmConstrucao(conteudo, { tela });
 
   conteudo.focus({ preventScroll: true });

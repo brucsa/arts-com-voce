@@ -562,3 +562,12 @@ button.atalho { background: var(--papel); font: inherit; font-weight: 700; text-
 .recorte-regua span:nth-child(3) { top: 33.333%; left: 0; right: 0; height: 1px; }
 .recorte-regua span:nth-child(4) { top: 66.666%; left: 0; right: 0; height: 1px; }
 .recorte-zoom input { width: 100%; accent-color: var(--azul); }
+
+/* ---------------------------------------------------------- Joca ⭐ (R89–R92) */
+.joca-pct { margin: 0 0 12px; }
+.linha-botao { width: 100%; text-align: left; background: transparent; border: 0; border-top: 1px solid var(--linha);
+  font: inherit; color: inherit; cursor: pointer; border-radius: 0; }
+.lista > li:first-child > .linha-botao { border-top: 0; }
+.linha-botao:hover { background: var(--creme); }
+.linha-botao:focus-visible { outline: 3px solid var(--ambar); outline-offset: -3px; }
+.acoes-caixa .texto-secundario { align-self: center; }

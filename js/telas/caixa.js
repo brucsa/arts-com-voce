@@ -97,7 +97,9 @@ async function desenhar(area, recarregar) {
         const entrada = m.tipo === 'ENTRADA';
         // Movimentos que vêm de um Pedido Direto são corrigidos no próprio pedido.
         const doPedido = m.origem === 'RECEBIMENTO' || m.origem === 'REEMBOLSO';
-        const podeEstornar = m.origem !== 'ESTORNO' && !m.estornado && !doPedido;
+        // O pagamento ao Joca é estornado na área Joca ⭐ (R91).
+        const doJoca = m.origem === 'PAGAMENTO_JOCA';
+        const podeEstornar = m.origem !== 'ESTORNO' && !m.estornado && !doPedido && !doJoca;
         return `<li class="linha">
           <div class="linha-texto">
             <strong>${esc(m.descricao)} ${m.estornado ? '<span class="selo-p selo-inativo">Estornado</span>' : ''}</strong>

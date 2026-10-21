@@ -123,7 +123,7 @@ async function parametros(painel, recarregar) {
       </div>
       <p class="aviso aviso-ok" role="status" hidden></p>
       <div class="lista">
-        ${linha('comissao_joca_pct', 'Vale só para vendas registradas depois da mudança.')}
+        ${linha('comissao_joca_pct', 'Vale para pedidos com data a partir do dia da mudança. Pedidos já registrados não mudam.')}
         ${linha('potencia_impressora_w', 'Média de consumo imprimindo, usada no custo de energia.')}
         ${linha('tarifa_kwh', 'Valor por kWh da conta de luz, com impostos.')}
         ${linha('alerta_repasse_dias', 'Avisa quando um repasse da Shopee ou do Mercado Livre passar desse prazo.')}

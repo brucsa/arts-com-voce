@@ -5,7 +5,8 @@
 // registrar_devolucao, estornar_recebimento, estornar_devolucao). As regras
 // valem no banco; aqui a tela só ajuda e mostra as mensagens dele.
 // Recebimentos, devoluções e estornos entram no Caixa pelo próprio banco
-// (integração Pedidos Diretos → Caixa). Não mexe no estoque nem na comissão do Joca.
+// (integração Pedidos Diretos → Caixa). A comissão do Joca é acertada pelo próprio
+// banco (R89–R92). Não mexe no estoque.
 
 import { supabase, configurado } from '../supabase.js';
 import { ok } from '../db.js';
