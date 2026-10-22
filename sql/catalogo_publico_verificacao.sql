@@ -19,10 +19,14 @@ with checagens (ordem, verificacao, passou, detalhe) as (
      and not has_function_privilege('anon', 'public.definir_produto_catalogo(uuid, boolean, boolean)', 'EXECUTE'), ''
 
   union all
-  select 3, 'catalogo_publico devolve só nome, preço, descrição, foto e cores (e o código do produto)',
+  select 3, 'catalogo_publico devolve só nome, preço, descrição, foto, cores e tempo de impressão (e o código do produto)',
          exists (select 1 from pg_proc where oid = to_regprocedure('public.catalogo_publico()')
                     and prosecdef and provolatile = 's'
-                    and pg_get_function_result(oid) = 'TABLE(id uuid, nome text, descricao text, preco numeric, sob_consulta boolean, foto_path text, cores text[])'), ''
+                    -- Texto anterior: só a primeira forma. Com o sql/21, o tempo de
+                    -- impressão entra no fim (R85 v1.13).
+                    and pg_get_function_result(oid) in (
+                      'TABLE(id uuid, nome text, descricao text, preco numeric, sob_consulta boolean, foto_path text, cores text[])',
+                      'TABLE(id uuid, nome text, descricao text, preco numeric, sob_consulta boolean, foto_path text, cores text[], tempo_impressao_min integer)')), ''
 
   union all
   select 4, 'catalogo_publico só mostra produtos ativos marcados',

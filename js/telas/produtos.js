@@ -241,6 +241,10 @@ async function desenhar(area, recarregar, mensagem) {
   const extras = await sb.from('produto_fotos').select('produto_id, ordem, foto_path').order('ordem')
     .then(({ data, error }) => (error ? null : data || []));
   produtos.forEach(p => { p.fotos_extra = (extras || []).filter(f => f.produto_id === p.id).map(f => f.foto_path); });
+  // Descrição interna (sql/21). Antes de instalar, a coluna não existe: só a descrição do cliente.
+  const internas = await sb.from('produtos').select('id, descricao_interna')
+    .then(({ data, error }) => (error ? null : Object.fromEntries((data || []).map(x => [x.id, x.descricao_interna]))));
+  produtos.forEach(p => { p.descricao_interna = internas ? internas[p.id] || null : null; });
   const fotos = await linksDasFotos(sb, produtos);
   // Marcações do catálogo público (R86). Antes do sql/11 as colunas não
   // existem: a tela continua funcionando, só sem as marcações.
@@ -248,7 +252,7 @@ async function desenhar(area, recarregar, mensagem) {
     .then(({ data, error }) => (error ? null : Object.fromEntries((data || []).map(m => [m.id, m]))));
   if (marcas) produtos.forEach(p => Object.assign(p, { no_catalogo: false, personalizado: false }, marcas[p.id] || {}));
   const ficha = await carregarFichas(sb, produtos);
-  const contexto = { sb, produtos, filamentos, fotos, recarregar, catalogo: !!marcas, ficha, galeria: !!extras };
+  const contexto = { sb, produtos, filamentos, fotos, recarregar, catalogo: !!marcas, ficha, galeria: !!extras, interna: !!internas };
 
   area.innerHTML = `
     <section class="cartao filtros filtros-produtos">
@@ -420,7 +424,8 @@ function abrirDetalhe(ctx, p) {
       </div>
       <div class="detalhe-dados">
         ${p.ativo && !p.no_catalogo && !p.personalizado ? '' : `<p>${p.ativo ? '' : '<span class="selo-p selo-inativo">Inativo</span>'}${selosCatalogo(p)}</p>`}
-        ${p.descricao ? `<p class="detalhe-descricao">${esc(p.descricao)}</p>` : ''}
+        ${p.descricao ? `${ctx.interna ? '<p class="detalhe-titulo">Descrição para o cliente</p>' : ''}<p class="detalhe-descricao">${esc(p.descricao)}</p>` : ''}
+        ${p.descricao_interna ? `<p class="detalhe-titulo">Descrição interna <span class="texto-secundario">(só você vê)</span></p><p class="detalhe-descricao">${esc(p.descricao_interna)}</p>` : ''}
         ${linha('Preço de venda', p.sem_preco ? '<span class="selo-p selo-sem-preco">Sem preço</span>' : brl(p.preco_venda))}
         ${linha('Tempo', tempo)}
         ${linha('Peso', p.peso_g != null ? `${paraCampo(p.peso_g, 0, 2)} g` : '')}
@@ -463,7 +468,7 @@ function abrirDetalhe(ctx, p) {
 }
 
 function abrirFormulario(ctx, p) {
-  const { sb, produtos, filamentos, fotos, recarregar, catalogo, ficha, galeria } = ctx;
+  const { sb, produtos, filamentos, fotos, recarregar, catalogo, ficha, galeria, interna } = ctx;
   const editando = !!p;
   const maxFotos = galeria ? MAX_FOTOS : 1;
   const fotosOriginais = todasAsFotos(p);
@@ -497,8 +502,12 @@ function abrirFormulario(ctx, p) {
           <input type="text" id="p-nome" name="nome" maxlength="150" value="${esc(p?.nome || '')}" autocomplete="off" required>
           <small class="campo-dica campo-aviso-nome" data-aviso-nome hidden></small></div>
 
-        <div class="campo"><label for="p-desc">Descrição</label>
-          <textarea id="p-desc" name="descricao" rows="3" maxlength="4000">${esc(p?.descricao || '')}</textarea></div>
+        <div class="campo"><label for="p-desc">${interna ? 'Descrição para o cliente' : 'Descrição'}</label>
+          <textarea id="p-desc" name="descricao" rows="3" maxlength="4000" ${interna ? 'aria-describedby="p-desc-dica"' : ''}>${esc(p?.descricao || '')}</textarea>
+          ${interna ? '<small class="campo-dica" id="p-desc-dica">Aparece no catálogo, junto com o tempo de impressão.</small>' : ''}</div>
+        ${interna ? `<div class="campo"><label for="p-desc-int">Descrição interna <em>(opcional)</em></label>
+          <textarea id="p-desc-int" name="descricao_interna" rows="3" maxlength="4000" aria-describedby="p-desc-int-dica">${esc(p?.descricao_interna || '')}</textarea>
+          <small class="campo-dica" id="p-desc-int-dica">Só você vê. Não aparece no catálogo.</small></div>` : ''}
 
         <fieldset class="itens-compra">
           <legend>Cores (filamentos do estoque)</legend>
@@ -841,7 +850,18 @@ function abrirFormulario(ctx, p) {
           }
         }
       }
-      // 5. Ficha de consumo (R93), só quando mudou.
+      // 5. Descrição interna (sql/21), só quando mudou.
+      if (interna) {
+        const novaInterna = form.elements.descricao_interna.value.trim();
+        if (novaInterna !== (p?.descricao_interna || '')) {
+          try {
+            await sb.rpc('salvar_descricao_interna', { p_produto_id: r.id, p_texto: novaInterna }).then(ok);
+          } catch (err) {
+            feito = `"${nome}" foi salvo, mas a descrição interna não foi gravada (${err.message}). Abra o produto e tente de novo.`;
+          }
+        }
+      }
+      // 6. Ficha de consumo (R93), só quando mudou.
       if (novaFicha && JSON.stringify(novaFicha) !== fichaOriginal) {
         try {
           await sb.rpc('salvar_ficha_produto', { p_produto_id: r.id, p_partes: novaFicha.partes, p_materiais: novaFicha.materiais }).then(ok);

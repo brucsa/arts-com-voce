@@ -446,6 +446,21 @@ button.atalho { background: var(--papel); font: inherit; font-weight: 700; text-
 /* ---------------------------------------------------------- Produtos (Catálogo Essencial) */
 .filtros-produtos { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) auto; align-items: end; margin-bottom: 12px; }
 .filtros-acao { display: flex; }
+.filtros-produtos.filtros-pedidos { grid-template-columns: minmax(0, 1fr) auto; }
+.filtro-status { grid-column: 1 / -1; border: 0; margin: 0; padding: 0; min-width: 0; }
+.filtro-status legend { font-size: .85rem; font-weight: 700; padding: 0; margin-bottom: 6px; }
+.filtro-status legend .texto-secundario { font-weight: 400; }
+.filtro-status-opcoes { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.opcao-status { position: relative; }
+.opcao-status input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.opcao-status span {
+  display: inline-flex; align-items: center; gap: 4px; min-height: 38px; padding: 0 12px; border-radius: 19px;
+  border: 1px solid var(--linha-forte); background: var(--papel); cursor: pointer; font-weight: 700; font-size: .9rem;
+}
+.opcao-status small { font-weight: 400; color: var(--tinta-2); }
+.opcao-status input:checked + span { background: var(--azul-claro); border-color: var(--azul); color: var(--azul-escuro); }
+.opcao-status input:checked + span::before { content: '✓'; }
+.opcao-status input:focus-visible + span { outline: 3px solid var(--ambar); outline-offset: 2px; }
 .contagem-produtos { font-size: .85rem; margin: 0 0 10px; }
 .barra-catalogo { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; justify-content: space-between; margin-bottom: 12px; }
 .barra-catalogo-texto { display: grid; gap: 2px; min-width: 0; }
@@ -535,6 +550,7 @@ button.atalho { background: var(--papel); font: inherit; font-weight: 700; text-
 }
 @media (max-width: 599px) {
   .filtros-produtos { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .filtros-produtos.filtros-pedidos { grid-template-columns: minmax(0, 1fr); }
   .filtros-produtos .filtros-acao { grid-column: 1 / -1; }
   .filtros-produtos .filtros-acao .botao { width: 100%; justify-content: center; }
   .grade-produtos { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }

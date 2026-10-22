@@ -60,7 +60,8 @@ const num = v => Number(v || 0);
 const numeroPedido = n => `#${String(n).padStart(4, '0')}`;
 const corDoFilamento = f => `${f.tipo} · ${f.variacao ?? f.cor}`;
 
-const filtro = { busca: '', status: '' };
+// status: os marcados no filtro (nenhum marcado = todos).
+const filtro = { busca: '', status: [] };
 
 /** Código de envio: o mesmo formulário enviado de novo não cria um segundo lançamento. */
 function novaChave() {
@@ -120,19 +121,22 @@ async function desenhar(area, recarregar, mensagem, abrirId) {
   const ctx = { sb, ...cadastros, recarregar };
 
   area.innerHTML = `
-    <section class="cartao filtros filtros-produtos">
+    <section class="cartao filtros filtros-produtos filtros-pedidos">
       <label class="campo campo-compacto"><span>Buscar por cliente ou número</span>
         <input type="search" name="busca" value="${esc(filtro.busca)}" placeholder="Ex.: Ana ou 12" autocomplete="off"></label>
-      <label class="campo campo-compacto"><span>Status</span>
-        <select name="status">
-          <option value="">Todos</option>
-          <option value="ANDAMENTO" ${filtro.status === 'ANDAMENTO' ? 'selected' : ''}>Em andamento</option>
-          ${Object.entries(STATUS).map(([k, s]) => `<option value="${k}" ${filtro.status === k ? 'selected' : ''}>${s.rotulo}</option>`).join('')}
-        </select></label>
       <div class="filtros-acao">
         <button type="button" class="botao botao-primario" data-novo>
           <i class="ti ti-plus" aria-hidden="true"></i> Novo pedido</button>
       </div>
+      <fieldset class="filtro-status">
+        <legend>Status <span class="texto-secundario">(marque um ou mais; nenhum = todos)</span></legend>
+        <div class="filtro-status-opcoes">
+          ${Object.entries(STATUS).map(([k, s]) => `<label class="opcao-status">
+            <input type="checkbox" name="status" value="${k}" ${filtro.status.includes(k) ? 'checked' : ''}>
+            <span>${s.rotulo} <small data-qtd-status="${k}"></small></span></label>`).join('')}
+          <button type="button" class="botao-texto" data-limpar-status ${filtro.status.length ? '' : 'hidden'}>Limpar</button>
+        </div>
+      </fieldset>
     </section>
     <p class="aviso aviso-ok" role="status" ${mensagem ? '' : 'hidden'}>${esc(mensagem || '')}</p>
     <p class="texto-secundario contagem-produtos" data-contagem aria-live="polite"></p>
@@ -145,13 +149,16 @@ async function desenhar(area, recarregar, mensagem, abrirId) {
     const termo = normal(filtro.busca);
     const termoNumero = termo.replace(/^#/, '').replace(/^0+(?=\d)/, '');
     const lista = pedidos.filter(p => {
-      if (filtro.status === 'ANDAMENTO' && !EDITAVEIS.includes(p.status_pedido)) return false;
-      if (filtro.status && filtro.status !== 'ANDAMENTO' && p.status_pedido !== filtro.status) return false;
+      if (filtro.status.length && !filtro.status.includes(p.status_pedido)) return false;
       if (!termo) return true;
       return normal(p.cliente_nome || 'shopee').includes(termo) || normal(p.pedido_shopee).includes(termo)
         || (/^\d+$/.test(termoNumero) && String(p.numero) === termoNumero);
     });
     contagemEl.textContent = pedidos.length ? `${lista.length} de ${pedidos.length} pedido(s)` : '';
+    area.querySelectorAll('[data-qtd-status]').forEach(el => {
+      el.textContent = `(${pedidos.filter(p => p.status_pedido === el.dataset.qtdStatus).length})`;
+    });
+    limparStatus.hidden = !filtro.status.length;
 
     if (!pedidos.length) {
       listaEl.innerHTML = `<section class="cartao vazio-produtos">
@@ -168,9 +175,17 @@ async function desenhar(area, recarregar, mensagem, abrirId) {
     listaEl.innerHTML = `<section class="cartao cartao-pedidos"><ul class="lista">${lista.map(linhaPedido).join('')}</ul></section>`;
   }
 
+  const limparStatus = area.querySelector('[data-limpar-status]');
   area.querySelector('.filtros').addEventListener('input', e => {
     if (!e.target.name) return;
-    filtro[e.target.name] = e.target.value;
+    if (e.target.name === 'status') {
+      filtro.status = [...area.querySelectorAll('[name="status"]:checked')].map(c => c.value);
+    } else filtro[e.target.name] = e.target.value;
+    mostrar();
+  });
+  limparStatus.addEventListener('click', () => {
+    area.querySelectorAll('[name="status"]').forEach(c => { c.checked = false; });
+    filtro.status = [];
     mostrar();
   });
   area.querySelector('[data-novo]').addEventListener('click', () => abrirFormularioPedido(ctx, null));

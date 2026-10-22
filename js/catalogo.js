@@ -138,6 +138,13 @@ function ligarCarrossel(el) {
   }));
 }
 
+/** 150 → "2 h 30 min"; 45 → "45 min" (R85 v1.13). */
+function tempoTexto(min) {
+  const n = Number(min);
+  const h = Math.floor(n / 60), m = n % 60;
+  return [h ? `${h} h` : '', m ? `${m} min` : ''].filter(Boolean).join(' ');
+}
+
 function linhaTotal() {
   let total = 0, consulta = false;
   carrinho.forEach(i => {
@@ -187,9 +194,8 @@ function telaVitrine() {
         <a class="cartao-foto" href="#/produto/${p.id}" tabindex="-1" aria-hidden="true">${foto(p, false)}</a>
         <div class="cartao-corpo">
           <h2 class="cartao-nome"><a href="#/produto/${p.id}">${esc(p.nome)}</a></h2>
-          <span class="preco ${p.sob_consulta ? 'preco-consulta' : ''}">${precoTexto(p)}</span>
-          <span class="cores-linha">Cores a consultar</span>
           <span class="espaco"></span>
+          <span class="preco ${p.sob_consulta ? 'preco-consulta' : ''}">${precoTexto(p)}</span>
           <a class="botao" href="#/produto/${p.id}" aria-label="Adicionar ${esc(p.nome)}">+ Adicionar</a>
         </div>
       </article>`).join('');
@@ -215,6 +221,7 @@ function telaProduto(id) {
         </div>
         ${p.sob_consulta ? '<p class="aviso-consulta">O valor desta peça é combinado na conversa pelo WhatsApp.</p>' : ''}
         ${p.descricao ? `<p class="descricao">${esc(p.descricao)}</p>` : ''}
+        ${p.tempo_impressao_min ? `<p class="tempo-impressao"><strong>Tempo de impressão:</strong> ${tempoTexto(p.tempo_impressao_min)}</p>` : ''}
         <p class="cores-detalhe"><strong>Cores:</strong> a consultar. Combinamos a cor com você pelo WhatsApp.</p>
         <div class="quantidade-linha">
           <span id="rot-qtd">Quantidade</span>
