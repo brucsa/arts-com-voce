@@ -246,7 +246,7 @@ function telaVitrine() {
 function htmlOpcoes(p) {
   return p.opcoes.map((o, k) => `
     <fieldset class="escolha" data-opcao="${k}">
-      <legend>${esc(o.nome)}${escolha.sel[k] ? `: <strong>${esc(escolha.sel[k])}</strong>` : ''}</legend>
+      <legend>${esc(o.nome)}</legend>
       <div class="opcao-valores">${o.valores.map(v => `
         <button type="button" class="opcao-valor" data-valor="${esc(v)}" aria-pressed="${escolha.sel[k] === v}">${esc(v)}</button>`).join('')}
       </div>

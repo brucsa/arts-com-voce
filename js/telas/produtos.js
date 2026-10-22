@@ -575,7 +575,7 @@ function abrirFormulario(ctx, p) {
               <div class="campo"><label for="p-peso">Peso (g)</label>
                 <input type="text" inputmode="decimal" id="p-peso" name="peso" value="${num(p?.peso_g)}" placeholder="0" autocomplete="off"></div>
               <div class="campo"><label for="p-preco">Preço (R$)</label>
-                <input type="text" inputmode="decimal" id="p-preco" name="preco" value="${num(p?.preco_venda)}" placeholder="0,00" autocomplete="off"></div>
+                <input type="text" inputmode="decimal" id="p-preco" name="preco" value="${p?.preco_venda == null ? '' : paraCampo(p.preco_venda, 2, 2)}" placeholder="0,00" autocomplete="off"></div>
             </div>
           </fieldset>
         </div>
@@ -594,7 +594,7 @@ function abrirFormulario(ctx, p) {
 
         ${variacoes ? `<fieldset class="itens-compra variacoes-form">
           <legend>Variações <em>(opcional)</em></legend>
-          <p class="campo-dica">Até 3 opções (ex.: Tamanho, Modelo). Cada combinação tem preço próprio e pode ser desligada. A ficha de cada combinação é ajustada no detalhe do produto.</p>
+          <p class="campo-dica">A opção é o que o cliente escolhe (ex.: Cor da flor) e os valores são as escolhas (ex.: Rosa claro, Vermelha). Até 3 opções. O preço vai em cada combinação, logo abaixo; ela pode ser desligada. A ficha de cada combinação é ajustada no detalhe do produto.</p>
           <div data-variacoes></div>
         </fieldset>` : ''}
 
@@ -627,6 +627,12 @@ function abrirFormulario(ctx, p) {
   let fotosTela = fotosOriginais.map(f => ({ path: f, url: fotos[f] || null }));
 
   const falhar = msg => { erro.textContent = msg; erro.hidden = false; };
+
+  // Preço em reais com centavos ao sair do campo: "29,9" vira "29,90".
+  form.elements.preco.addEventListener('blur', e => {
+    const v = lerDecimal(e.target.value, 2);
+    if (e.target.value.trim() && Number.isFinite(v) && v >= 0) e.target.value = paraCampo(v, 2, 2);
+  });
 
   // Variações (sql/22): combinações novas começam com o preço do produto.
   const editorVar = variacoes ? montarEditorVariacoes(dialog.querySelector('[data-variacoes]'), p,

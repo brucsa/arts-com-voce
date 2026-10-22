@@ -62,6 +62,8 @@ export function htmlCombinacoesDetalhe(p, comFicha) {
 
 // ---------------------------------------------------------------- editor no formulário do produto
 let seq = 0;
+/** "29,9" → "29,90"; texto que não é valor fica como está (o erro aparece ao salvar). */
+const emReais = t => { const v = lerDecimal(t, 2); return String(t ?? '').trim() && Number.isFinite(v) && v >= 0 ? paraCampo(v, 2, 2) : String(t ?? '').trim(); };
 const novaChave = () => `n${Date.now().toString(36)}${(seq++).toString(36)}`;
 const chaveComb = chaves => [...chaves].sort().join('|');
 
@@ -98,17 +100,17 @@ export function montarEditorVariacoes(el, p, precoPadrao) {
         <div class="opcao-variacao" data-opcao="${i}">
           <div class="opcao-topo">
             <label class="campo campo-compacto"><span>Opção ${i + 1}</span>
-              <input type="text" data-nome-opcao maxlength="30" value="${esc(o.nome)}" placeholder="Ex.: Tamanho" autocomplete="off"></label>
+              <input type="text" data-nome-opcao maxlength="30" value="${esc(o.nome)}" placeholder="Ex.: Cor da flor" autocomplete="off"></label>
             <button type="button" class="botao-icone" data-tirar-opcao aria-label="Tirar a opção ${esc(o.nome || i + 1)}"><i class="ti ti-trash" aria-hidden="true"></i></button>
           </div>
           <div class="valores-opcao">
             ${o.valores.map((v, j) => `<span class="valor-opcao">
-              <input type="text" data-valor="${j}" maxlength="40" value="${esc(v.valor)}" placeholder="Ex.: P" autocomplete="off" aria-label="Valor ${j + 1} de ${esc(o.nome || `opção ${i + 1}`)}">
+              <input type="text" data-valor="${j}" maxlength="40" value="${esc(v.valor)}" placeholder="Ex.: Rosa claro" autocomplete="off" aria-label="Valor ${j + 1} de ${esc(o.nome || `opção ${i + 1}`)}">
               <button type="button" class="botao-icone" data-tirar-valor="${j}" aria-label="Tirar o valor ${esc(v.valor || j + 1)}"><i class="ti ti-x" aria-hidden="true"></i></button></span>`).join('')}
             ${o.valores.length < MAX_VALORES ? '<button type="button" class="botao-texto" data-add-valor><i class="ti ti-plus" aria-hidden="true"></i> Valor</button>' : ''}
           </div>
         </div>`).join('')}
-      ${opcoes.length < MAX_OPCOES ? `<button type="button" class="botao-texto ficha-adicionar" data-add-opcao><i class="ti ti-plus" aria-hidden="true"></i> ${opcoes.length ? 'Adicionar opção' : 'Adicionar variações (ex.: Tamanho, Cor)'}</button>` : ''}`;
+      ${opcoes.length < MAX_OPCOES ? `<button type="button" class="botao-texto ficha-adicionar" data-add-opcao><i class="ti ti-plus" aria-hidden="true"></i> ${opcoes.length ? 'Adicionar opção' : 'Adicionar variações (ex.: Cor da flor, Tamanho)'}</button>` : ''}`;
   }
   function desenharCombinacoes() {
     const lista = combinacoes();
@@ -117,7 +119,7 @@ export function montarEditorVariacoes(el, p, precoPadrao) {
         <p class="campo-dica">Cada combinação tem o preço dela; vazio = sob consulta. Desmarque para não oferecer.</p>
         <div class="lista-combinacoes-form">${lista.map(c => {
           const k = chaveComb(c.map(v => v.chave));
-          const st = combs.get(k) || { preco: precoPadrao(), ativo: true };
+          const st = combs.get(k) || { preco: emReais(precoPadrao()), ativo: true };
           combs.set(k, st);
           return `<div class="linha-combinacao" data-comb="${esc(k)}">
             <span class="combinacao-nome">${c.map(v => esc(v.valor.trim())).join(' · ')}</span>
@@ -159,6 +161,10 @@ export function montarEditorVariacoes(el, p, precoPadrao) {
   });
   el.addEventListener('change', e => {
     if (e.target.matches('[data-ativa-comb]')) combs.get(e.target.closest('[data-comb]').dataset.comb).ativo = e.target.checked;
+    if (e.target.matches('[data-preco-comb]')) {
+      e.target.value = emReais(e.target.value);
+      combs.get(e.target.closest('[data-comb]').dataset.comb).preco = e.target.value;
+    }
     // Valor apagado ou preenchido muda as combinações: redesenha ao sair do campo
     if (e.target.matches('[data-valor]')) desenharCombinacoes();
   });
