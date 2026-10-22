@@ -3,12 +3,16 @@
 // Grava só pelas funções do banco: registrar_producao, estornar_producao,
 // usar_peca_pronta, baixar_peca_pronta e estornar_saida_peca. O material sai
 // do estoque pelo custo médio, no próprio banco. Nada entra no Caixa.
+// Combinações (sql/22, R116, R119): a produção para o estoque escolhe a
+// combinação, a ficha dela (se tiver) preenche o material e a peça pronta só
+// vai para item da mesma combinação. Antes do sql/22, como sempre.
 
 import { supabase, configurado } from '../supabase.js';
 import { ok } from '../db.js';
 import { esc, brl, dataBR, hojeISO, lerDecimal, paraCampo, arred2 } from '../format.js';
 import { cliqueForaDoDialogo } from '../ui/dialogo.js';
 import { abrirFormulario } from '../ui/formulario.js';
+import { carregarVariacoes } from './variacoes.js';
 
 const ABERTOS = ['AGUARDANDO', 'PRODUZINDO', 'PRONTO'];
 const DESTINO = { PEDIDO: 'Item de pedido', ESTOQUE: 'Estoque de peças prontas', AVULSA: 'Avulsa' };
@@ -17,6 +21,9 @@ const nomeMat = m => `${m.tipo}${m.variacao ? ` · ${m.variacao}` : ''}`;
 const qtdTexto = (v, un) => `${paraCampo(v, 0, 3)} ${un}`;
 const plural = (n, um, varios) => `${n} ${n === 1 ? um : varios}`;
 const mesAtual = () => hojeISO().slice(0, 7);
+/** Lote de peças prontas serve para o item: mesmo produto e mesma combinação (R119). */
+const loteServe = (l, i) => l.produto_id === i.produto_id && (l.variacao_id || null) === (i.variacao_id || null);
+const nomeLote = l => `${l.produto}${l.variacao ? ` · ${l.variacao}` : ''}`;
 
 /** Código de envio: o mesmo formulário enviado de novo não registra duas vezes. */
 export function novaChave() {
@@ -52,7 +59,11 @@ export async function carregarDados(sb) {
     p.partes = partes.filter(x => x.produto_id === p.id);
     p.outros = outros.filter(x => x.produto_id === p.id).map(x => ({ ...x, material: mat[x.material_id] })).filter(x => x.material);
   });
-  return { itens, produtos, estoque, mat, cfg: cfg[0] || {}, lotes };
+  const comVariacoes = await carregarVariacoes(sb, produtos);
+  produtos.forEach(p => p.variacoes.forEach(v => {
+    v.outros = v.outros.map(x => ({ ...x, material: mat[x.material_id] })).filter(x => x.material);
+  }));
+  return { itens, produtos, estoque, mat, cfg: cfg[0] || {}, lotes, comVariacoes };
 }
 
 // ---------------------------------------------------------------- tela
@@ -94,7 +105,7 @@ async function desenhar(area, recarregar, mensagem) {
   const aFazer = itens.filter(i => i.faltam > 0 && i.status_pedido !== 'PRONTO');
   const pecasProntas = lotes.reduce((t, l) => t + l.saldo, 0);
   const totalPerdas = perdas.reduce((t, p) => arred2(t + Number(p.valor)), 0);
-  const lotesDe = produtoId => lotes.filter(l => l.produto_id === produtoId);
+  const lotesDe = i => lotes.filter(l => loteServe(l, i));
 
   area.innerHTML = `
     <div class="grade-metricas">
@@ -132,7 +143,7 @@ async function desenhar(area, recarregar, mensagem) {
           <div class="linha-direita">
             <span class="selo-p selo-despesa">Falta ${i.faltam}</span>
             <div class="linha-acoes">
-              ${i.produto_id && lotesDe(i.produto_id).length ? `<button class="botao botao-pequeno" data-usar="${i.item_id}">Usar peça pronta</button>` : ''}
+              ${i.produto_id && lotesDe(i).length ? `<button class="botao botao-pequeno" data-usar="${i.item_id}">Usar peça pronta</button>` : ''}
               <button class="botao botao-pequeno botao-primario" data-produzir="${i.item_id}">Registrar</button>
             </div>
           </div>
@@ -144,7 +155,7 @@ async function desenhar(area, recarregar, mensagem) {
       ${lotes.length ? `<ul class="lista">${lotes.map(l => `
         <li class="linha">
           <div class="linha-texto">
-            <strong>${esc(l.produto)}</strong>
+            <strong>${esc(nomeLote(l))}</strong>
             <span class="texto-secundario">${esc(l.cores_descricao)}</span>
             <span class="texto-secundario">Produzidas em ${dataBR(l.data)} · ${brl(l.custo_unitario)} cada</span>
           </div>
@@ -252,7 +263,7 @@ function abrirFolha(html, rotulo) {
  */
 export async function abrirRegistroProducao(sb, { dados, itemId = null, aoConcluir }) {
   if (!dados) dados = await carregarDados(sb);
-  const { itens, produtos, estoque, mat, cfg } = dados;
+  const { itens, produtos, estoque, mat, cfg, comVariacoes } = dados;
   const itensAbertos = itens.filter(i => i.faltam > 0 && ['AGUARDANDO', 'PRODUZINDO'].includes(i.status_pedido) || i.item_id === itemId);
   const produtosAtivos = produtos.filter(p => p.ativo);
   const semEnergia = !cfg.potencia_impressora_w || !cfg.tarifa_kwh;
@@ -288,6 +299,9 @@ export async function abrirRegistroProducao(sb, { dados, itemId = null, aoConclu
           <option value="">Escolha o produto</option>
           ${produtosAtivos.map(p => `<option value="${p.id}">${esc(p.nome)}</option>`).join('')}
         </select></div>
+      ${comVariacoes ? `<div class="campo" data-campo-variacao hidden><label for="pr-variacao">Combinação</label>
+        <select id="pr-variacao" name="variacao"></select>
+        <small class="campo-dica">As peças prontas ficam separadas por combinação e só vão para pedidos da mesma combinação.</small></div>` : ''}
       <div class="campo" data-so="AVULSA" hidden><label for="pr-desc">Descrição</label>
         <input type="text" id="pr-desc" name="descricao" maxlength="200" placeholder="Ex.: teste de calibração, brinde" autocomplete="off">
         <small class="campo-dica">Os materiais saem do estoque. Não gera peça pronta e não é perda.</small></div>
@@ -333,14 +347,32 @@ export async function abrirRegistroProducao(sb, { dados, itemId = null, aoConclu
   const resumoEl = dialog.querySelector('[data-resumo]');
   const f = form.elements;
 
-  const atual = () => ({
-    destino: f.destino.value,
-    falha: f.resultado.value === 'FALHA',
-    item: itens.find(i => i.item_id === f.itemPedido.value) || null,
-    produto: f.destino.value === 'PEDIDO'
-      ? produtos.find(p => p.id === itens.find(i => i.item_id === f.itemPedido.value)?.produto_id) || null
-      : f.destino.value === 'ESTOQUE' ? produtos.find(p => p.id === f.produto.value) || null : null,
-  });
+  const atual = () => {
+    const a = {
+      destino: f.destino.value,
+      falha: f.resultado.value === 'FALHA',
+      item: itens.find(i => i.item_id === f.itemPedido.value) || null,
+      produto: f.destino.value === 'PEDIDO'
+        ? produtos.find(p => p.id === itens.find(i => i.item_id === f.itemPedido.value)?.produto_id) || null
+        : f.destino.value === 'ESTOQUE' ? produtos.find(p => p.id === f.produto.value) || null : null,
+    };
+    // Combinação: a do item do pedido, ou a escolhida para o estoque.
+    const vid = a.destino === 'PEDIDO' ? a.item?.variacao_id : a.destino === 'ESTOQUE' ? f.variacao?.value : null;
+    a.variacao = vid ? a.produto?.variacoes?.find(v => v.id === vid) || null : null;
+    // Ficha que vale: a da combinação, se tiver; senão a do produto (R113).
+    a.ficha = a.variacao?.temFicha ? a.variacao : a.produto;
+    return a;
+  };
+  /** Combinações ligadas do produto escolhido para o estoque. */
+  function ajustarVariacao() {
+    const caixa = dialog.querySelector('[data-campo-variacao]');
+    if (!caixa) return;
+    const p = f.destino.value === 'ESTOQUE' ? produtos.find(x => x.id === f.produto.value) : null;
+    const vs = (p?.variacoes || []).filter(v => v.ativo);
+    caixa.hidden = !vs.length;
+    f.variacao.innerHTML = '<option value="">Escolha a combinação</option>'
+      + vs.map(v => `<option value="${v.id}">${esc(v.descricao)}</option>`).join('');
+  }
 
   /** Materiais que podem entrar numa linha (filamento; insumo fora da falha; embalagem só na avulsa). */
   const opcoesMaterial = (a, escolhido) => estoque.filter(m => (m.ativo || m.material_id === escolhido)
@@ -389,16 +421,16 @@ export async function abrirRegistroProducao(sb, { dados, itemId = null, aoConclu
       linhas = a.item.partes.map(p => ({ parte: p.nome, material_id: p.material_id, fixa: true,
         peca: arred2(Number(p.gramas) * fator), purga: arred2(Number(p.purga_g) * fator) }));
       dica = 'As cores vêm do pedido. Os gramas vêm da ficha × peças: ajuste se gastou diferente.';
-    } else if (a.destino === 'ESTOQUE' && a.produto?.partes?.length) {
-      linhas = a.produto.partes.map(p => ({ parte: p.nome, material_id: anteriores[p.nome] || null,
+    } else if (a.destino === 'ESTOQUE' && a.ficha?.partes?.length) {
+      linhas = a.ficha.partes.map(p => ({ parte: p.nome, material_id: anteriores[p.nome] || null,
         peca: arred2(Number(p.gramas) * fator), purga: arred2(Number(p.purga_g) * fator) }));
       dica = 'Escolha a cor de cada parte (as peças prontas ficam separadas pelas cores). Os gramas vêm da ficha × peças.';
     } else {
       linhas = [{ material_id: a.destino === 'PEDIDO' ? a.item?.material_id || null : null, peca: null, purga: 0 }];
       dica = a.produto || a.item ? 'Este produto não tem ficha: informe o filamento e os gramas usados.' : 'Informe o filamento e os gramas usados.';
     }
-    if (!a.falha && a.produto) {
-      a.produto.outros.filter(o => o.material.categoria === 'INSUMO').forEach(o =>
+    if (!a.falha && a.ficha) {
+      a.ficha.outros.filter(o => o.material.categoria === 'INSUMO').forEach(o =>
         linhas.push({ material_id: o.material_id, peca: arred2(Number(o.quantidade) * pecas * 1000) / 1000, purga: 0 }));
     }
     if (a.falha) dica += ' Na falha só sai filamento, na proporção do que imprimiu.';
@@ -454,7 +486,8 @@ export async function abrirRegistroProducao(sb, { dados, itemId = null, aoConclu
 
   form.addEventListener('change', e => {
     erroEl.hidden = true;
-    if (['destino', 'resultado', 'itemPedido', 'produto'].includes(e.target.name)) { ajustarCampos(); preencher(); return; }
+    if (['destino', 'produto'].includes(e.target.name)) ajustarVariacao();
+    if (['destino', 'resultado', 'itemPedido', 'produto', 'variacao'].includes(e.target.name)) { ajustarCampos(); preencher(); return; }
     if (e.target.matches('[data-material]')) {
       // Troca de material numa linha livre: ajusta rótulo e purga (insumo não tem purga).
       const el = e.target.closest('[data-linha]');
@@ -489,6 +522,7 @@ export async function abrirRegistroProducao(sb, { dados, itemId = null, aoConclu
     try {
       if (a.destino === 'PEDIDO' && !a.item) throw new Error('Escolha o item do pedido.');
       if (a.destino === 'ESTOQUE' && !a.produto) throw new Error('Escolha o produto.');
+      if (a.destino === 'ESTOQUE' && a.produto.variacoes?.length && !a.variacao) throw new Error('Escolha a combinação.');
       if (a.destino === 'AVULSA' && !f.descricao.value.trim()) throw new Error('Descreva a produção avulsa (ex.: teste de calibração, brinde).');
       const pecas = a.destino === 'AVULSA' ? null : Number(f.pecas.value);
       if (a.destino !== 'AVULSA' && !(Number.isInteger(pecas) && pecas >= 1)) throw new Error(a.falha ? 'Informe quantas peças estavam na impressão.' : 'Informe quantas peças ficaram prontas.');
@@ -523,6 +557,8 @@ export async function abrirRegistroProducao(sb, { dados, itemId = null, aoConclu
           p_percentual: pct, p_tempo_min: min,
           p_consumos: linhas.map(l => ({ material_id: l.material_id, parte: l.parte, peca: String(l.peca), purga: String(l.purga) })),
           p_obs: f.obs.value.trim() || null, p_chave: chave,
+          // Combinação só depois do sql/22 (antes, a função não tem este parâmetro).
+          ...(comVariacoes ? { p_variacao_id: a.destino === 'ESTOQUE' ? a.variacao?.id || null : null } : {}),
         }).then(ok);
         fechar();
         const msg = a.falha ? `Falha registrada como perda de produção (${brl(r.custo_total)}).`
@@ -535,6 +571,7 @@ export async function abrirRegistroProducao(sb, { dados, itemId = null, aoConclu
     } catch (err) { falhar(err.message); }
   });
 
+  ajustarVariacao();
   ajustarCampos();
   preencher();
 }
@@ -545,8 +582,8 @@ export async function abrirUsarPecaPronta(sb, { dados, itemId, aoConcluir }) {
   if (!dados) dados = await carregarDados(sb);
   const item = dados.itens.find(i => i.item_id === itemId);
   if (!item) { window.alert('Item não encontrado.'); return; }
-  const lotes = dados.lotes.filter(l => l.produto_id === item.produto_id && l.saldo > 0);
-  if (!lotes.length) { window.alert('Não há peças prontas deste produto.'); return; }
+  const lotes = dados.lotes.filter(l => loteServe(l, item) && l.saldo > 0);
+  if (!lotes.length) { window.alert(item.variacao_id ? 'Não há peças prontas desta combinação.' : 'Não há peças prontas deste produto.'); return; }
   const chave = novaChave();
   abrirFormulario({
     titulo: 'Usar peça pronta',

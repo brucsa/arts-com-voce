@@ -588,6 +588,30 @@ button.atalho { background: var(--papel); font: inherit; font-weight: 700; text-
   .ficha-linha-outro { grid-template-columns: minmax(0, 1fr) auto; }
 }
 
+/* ---------------------------------------------------------- Variações de produto (R112–R116) */
+.variacoes-form { display: grid; gap: 10px; }
+.opcao-variacao { border: 1px solid var(--linha); border-radius: 10px; padding: 10px; display: grid; gap: 8px; }
+.opcao-topo { display: flex; align-items: flex-end; gap: 8px; }
+.opcao-topo .campo { flex: 1; }
+.valores-opcao { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.valor-opcao { display: inline-flex; align-items: center; gap: 2px; }
+.valor-opcao input { width: 110px; }
+.lista-combinacoes-form { display: grid; gap: 6px; }
+.linha-combinacao { display: grid; grid-template-columns: minmax(0, 1fr) 120px auto; gap: 10px; align-items: end;
+  padding: 6px 0; border-bottom: 1px solid var(--linha); }
+.linha-combinacao .combinacao-nome { align-self: center; font-weight: 600; }
+.campo-check-inline { display: inline-flex; align-items: center; gap: 6px; padding-bottom: 8px; white-space: nowrap; }
+.lista-combinacoes { list-style: none; margin: 0; padding: 0; }
+.lista-combinacoes li { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 10px; align-items: center;
+  padding: 6px 0; border-bottom: 1px solid var(--linha); }
+.lista-combinacoes li.inativo .combinacao-nome { color: var(--tinta-2); }
+@media (max-width: 599px) {
+  .linha-combinacao { grid-template-columns: 140px auto; justify-content: start; gap: 16px; }
+  .linha-combinacao .combinacao-nome { grid-column: 1 / -1; }
+  .lista-combinacoes li { grid-template-columns: minmax(0, 1fr) auto; }
+  .lista-combinacoes li .botao { grid-column: 1 / -1; justify-self: start; }
+}
+
 /* ---------------------------------------------------------- Pedidos Diretos Essencial (R76–R84) */
 .selo-pd-aguardando { background: var(--ambar-claro); color: var(--ambar-escuro); }
 .selo-pd-produzindo { background: var(--lilas-claro); color: var(--lilas-escuro); }

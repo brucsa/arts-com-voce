@@ -7,12 +7,15 @@
 // Até 5 fotos por produto (sql/20, R73 v1.12): a primeira é a capa
 // (produtos.foto_path) e as outras ficam em produto_fotos. Antes do sql/20,
 // uma foto só, como sempre.
+// Variações (sql/22, R112–R116): opções e combinações com preço próprio e
+// ficha opcional por combinação. Antes do sql/22, sem variações.
 
 import { supabase, configurado } from '../supabase.js';
 import { ok } from '../db.js';
 import { esc, brl, lerDecimal, paraCampo } from '../format.js';
 import { cliqueForaDoDialogo } from '../ui/dialogo.js';
 import { recortarQuadrado } from '../ui/recorte.js';
+import { carregarVariacoes, precoVariacoes, htmlCombinacoesDetalhe, montarEditorVariacoes, abrirFichaVariacao } from './variacoes.js';
 
 const PASTA = 'produtos';
 const filtro = { busca: '', situacao: 'ativos' };
@@ -252,7 +255,8 @@ async function desenhar(area, recarregar, mensagem) {
     .then(({ data, error }) => (error ? null : Object.fromEntries((data || []).map(m => [m.id, m]))));
   if (marcas) produtos.forEach(p => Object.assign(p, { no_catalogo: false, personalizado: false }, marcas[p.id] || {}));
   const ficha = await carregarFichas(sb, produtos);
-  const contexto = { sb, produtos, filamentos, fotos, recarregar, catalogo: !!marcas, ficha, galeria: !!extras, interna: !!internas };
+  const variacoes = await carregarVariacoes(sb, produtos);
+  const contexto = { sb, produtos, filamentos, fotos, recarregar, catalogo: !!marcas, ficha, galeria: !!extras, interna: !!internas, variacoes };
 
   area.innerHTML = `
     <section class="cartao filtros filtros-produtos">
@@ -345,6 +349,13 @@ function chipsCores(cores, limite = Infinity) {
     ${resto > 0 ? `<li class="chip-cor chip-mais">+${resto}</li>` : ''}</ul>`;
 }
 
+// Com combinações ligadas, o preço vem delas: "a partir de" o menor (R114).
+function precoCartao(p) {
+  const v = precoVariacoes(p);
+  if (v) return v.minimo == null ? '<span class="selo-p selo-sem-preco">Sob consulta</span>' : `<strong class="produto-preco">${v.texto}</strong>`;
+  return p.sem_preco ? '<span class="selo-p selo-sem-preco">Sem preço</span>' : `<strong class="produto-preco">${brl(p.preco_venda)}</strong>`;
+}
+
 function cartaoProduto(p, url) {
   const tempo = tempoTexto(p.tempo_impressao_min);
   return `<button type="button" class="cartao-produto ${p.ativo ? '' : 'produto-inativo'}" data-produto="${p.id}">
@@ -352,7 +363,7 @@ function cartaoProduto(p, url) {
     <span class="produto-corpo">
       <span class="produto-nome">${esc(p.nome)}${p.ativo ? '' : ' <span class="selo-p selo-inativo">Inativo</span>'}${selosCatalogo(p)}</span>
       <span class="produto-linha">
-        ${p.sem_preco ? '<span class="selo-p selo-sem-preco">Sem preço</span>' : `<strong class="produto-preco">${brl(p.preco_venda)}</strong>`}
+        ${precoCartao(p)}
         ${tempo ? `<span class="produto-tempo"><i class="ti ti-clock" aria-hidden="true"></i> ${tempo}</span>` : ''}
         ${p.partes?.length ? `<span class="produto-tempo"><i class="ti ti-puzzle" aria-hidden="true"></i> ${plural(p.partes.length, 'parte', 'partes')}</span>` : ''}
       </span>
@@ -426,13 +437,14 @@ function abrirDetalhe(ctx, p) {
         ${p.ativo && !p.no_catalogo && !p.personalizado ? '' : `<p>${p.ativo ? '' : '<span class="selo-p selo-inativo">Inativo</span>'}${selosCatalogo(p)}</p>`}
         ${p.descricao ? `${ctx.interna ? '<p class="detalhe-titulo">Descrição para o cliente</p>' : ''}<p class="detalhe-descricao">${esc(p.descricao)}</p>` : ''}
         ${p.descricao_interna ? `<p class="detalhe-titulo">Descrição interna <span class="texto-secundario">(só você vê)</span></p><p class="detalhe-descricao">${esc(p.descricao_interna)}</p>` : ''}
-        ${linha('Preço de venda', p.sem_preco ? '<span class="selo-p selo-sem-preco">Sem preço</span>' : brl(p.preco_venda))}
+        ${precoVariacoes(p) ? linha('Preço', esc(precoVariacoes(p).texto)) : linha('Preço de venda', p.sem_preco ? '<span class="selo-p selo-sem-preco">Sem preço</span>' : brl(p.preco_venda))}
         ${linha('Tempo', tempo)}
         ${linha('Peso', p.peso_g != null ? `${paraCampo(p.peso_g, 0, 2)} g` : '')}
         ${linha('Dimensões (A × L × P)', dims)}
         ${catalogo ? linha('Catálogo público', esc(situacaoCatalogo(p))) : ''}
         ${p.cores.length ? `<p class="detalhe-titulo">Cores</p>${chipsCores(p.cores)}` : ''}
         ${ficha ? htmlFicha(p) : ''}
+        ${htmlCombinacoesDetalhe(p, !!ficha)}
       </div>
     </div>
     <p class="aviso aviso-erro" role="alert" hidden></p>
@@ -447,6 +459,13 @@ function abrirDetalhe(ctx, p) {
   const falhar = msg => { erro.textContent = msg; erro.hidden = false; };
 
   dialog.querySelector('[data-editar]').addEventListener('click', () => { fechar(); abrirFormulario(ctx, p); });
+  // Ficha da combinação (R113): abre por cima e recarrega a tela ao salvar.
+  dialog.querySelectorAll('[data-ficha-variacao]').forEach(b => b.addEventListener('click', () => {
+    const v = p.variacoes.find(x => x.id === b.dataset.fichaVariacao);
+    fechar();
+    abrirFichaVariacao({ sb, p, v, materiais: ficha.materiais,
+      aoConcluir: () => recarregar(`Ficha de "${p.nome} · ${v.descricao}" salva.`) });
+  }));
   dialog.querySelector('[data-ativo]').addEventListener('click', async e => {
     e.target.disabled = true;
     try {
@@ -468,7 +487,7 @@ function abrirDetalhe(ctx, p) {
 }
 
 function abrirFormulario(ctx, p) {
-  const { sb, produtos, filamentos, fotos, recarregar, catalogo, ficha, galeria, interna } = ctx;
+  const { sb, produtos, filamentos, fotos, recarregar, catalogo, ficha, galeria, interna, variacoes } = ctx;
   const editando = !!p;
   const maxFotos = galeria ? MAX_FOTOS : 1;
   const fotosOriginais = todasAsFotos(p);
@@ -564,6 +583,12 @@ function abrirFormulario(ctx, p) {
           </div>
         </fieldset>` : ''}
 
+        ${variacoes ? `<fieldset class="itens-compra variacoes-form">
+          <legend>Variações <em>(opcional)</em></legend>
+          <p class="campo-dica">Até 3 opções (ex.: Tamanho, Modelo). Cada combinação tem preço próprio e pode ser desligada. A ficha de cada combinação é ajustada no detalhe do produto.</p>
+          <div data-variacoes></div>
+        </fieldset>` : ''}
+
         <fieldset class="itens-compra">
           <legend>Dimensões (cm)</legend>
           <div class="grade-dimensoes">
@@ -593,6 +618,10 @@ function abrirFormulario(ctx, p) {
   let fotosTela = fotosOriginais.map(f => ({ path: f, url: fotos[f] || null }));
 
   const falhar = msg => { erro.textContent = msg; erro.hidden = false; };
+
+  // Variações (sql/22): combinações novas começam com o preço do produto.
+  const editorVar = variacoes ? montarEditorVariacoes(dialog.querySelector('[data-variacoes]'), p,
+    () => form.elements.preco.value.trim()) : null;
 
   // Nome repetido: permitido, só avisa.
   const conferirNome = () => {
@@ -778,7 +807,7 @@ function abrirFormulario(ctx, p) {
     e.preventDefault();
     erro.hidden = true;
     const nome = form.elements.nome.value.trim();
-    let dados, novaFicha = null;
+    let dados, novaFicha = null, novasVariacoes = null;
     try {
       if (!nome) { form.elements.nome.focus(); throw new Error('Informe o nome do produto.'); }
       const h = lerInteiro('horas', 'Horas');
@@ -800,6 +829,7 @@ function abrirFormulario(ctx, p) {
       };
       // A ficha é conferida antes de salvar, para não gravar o produto sem ela.
       if (ficha) novaFicha = lerFicha();
+      if (editorVar?.mudou()) novasVariacoes = editorVar.ler();
     } catch (err) { falhar(err.message); return; }
 
     const botao = form.querySelector('[type="submit"]');
@@ -867,6 +897,14 @@ function abrirFormulario(ctx, p) {
           await sb.rpc('salvar_ficha_produto', { p_produto_id: r.id, p_partes: novaFicha.partes, p_materiais: novaFicha.materiais }).then(ok);
         } catch (err) {
           feito = `"${nome}" foi salvo, mas a ficha de consumo não foi gravada (${err.message}). Abra o produto e tente de novo.`;
+        }
+      }
+      // 7. Variações (sql/22), só quando mudaram.
+      if (novasVariacoes) {
+        try {
+          await sb.rpc('salvar_variacoes_produto', { p_produto_id: r.id, p_opcoes: novasVariacoes.opcoes, p_combinacoes: novasVariacoes.combinacoes }).then(ok);
+        } catch (err) {
+          feito = `"${nome}" foi salvo, mas as variações não foram gravadas (${err.message}). Abra o produto e tente de novo.`;
         }
       }
       fechar();

@@ -8,8 +8,11 @@ with
 tabelas(nome) as (values ('producoes'), ('producao_consumos'), ('pecas_prontas'), ('saidas_pecas_prontas'),
                          ('embalagens_pedido'), ('ajustes_estoque')),
 views(nome) as (values ('vw_itens_producao'), ('vw_pecas_prontas'), ('vw_perdas'), ('vw_pedido_custos')),
+-- registrar_producao: com o sql/22 (variações) ganha p_variacao_id no fim.
+-- Texto anterior: só a assinatura sem o último uuid.
 gravacao(assinatura) as (values
-  ('public.registrar_producao(date, text, text, uuid, uuid, text, integer, numeric, integer, jsonb, text, uuid)'),
+  (coalesce(to_regprocedure('public.registrar_producao(date, text, text, uuid, uuid, text, integer, numeric, integer, jsonb, text, uuid, uuid)')::text,
+            'public.registrar_producao(date, text, text, uuid, uuid, text, integer, numeric, integer, jsonb, text, uuid)')),
   ('public.estornar_producao(uuid, text)'), ('public.usar_peca_pronta(uuid, uuid, integer, uuid)'),
   ('public.baixar_peca_pronta(uuid, integer, text, text, date, uuid)'), ('public.estornar_saida_peca(uuid, text)'),
   ('public.ajustar_estoque(uuid, numeric, text, date, uuid)')),

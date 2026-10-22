@@ -50,6 +50,13 @@ h1, h2, h3, .chamada h1, .cartao-nome { font-family: var(--fonte-titulo); font-w
 h1, h2, h3, .titulo { color: var(--azul); }
 .chamada h1 { color: #fff; }
 strong, b { font-weight: 700; }
+/* Mascote ao lado do logo, com os braços por cima da linha do topo */
+.topo .marca { flex: none; }
+.mascote {
+  position: relative; align-self: flex-end; height: 80px; width: auto; margin: -8px 0 -24px 4px;
+  pointer-events: none; z-index: 1;
+}
+.topo .botao-carrinho { margin-left: auto; z-index: 2; }
 .botao-carrinho {
   position: relative; width: 44px; height: 44px; border-radius: 22px; background: var(--azul); color: #fff;
   display: flex; align-items: center; justify-content: center; flex: none;

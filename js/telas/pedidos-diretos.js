@@ -21,6 +21,7 @@ import { abrirFormulario } from '../ui/formulario.js';
 import { FORMAS, ROTULO_FORMA } from '../financeiro.js';
 import { abrirRegistroProducao, abrirUsarPecaPronta } from './producao.js';
 import { abrirVendaShopee } from './venda-shopee.js';
+import { carregarVariacoes } from './variacoes.js';
 
 // ---------------------------------------------------------------- nomes
 export const STATUS = {
@@ -84,7 +85,9 @@ async function carregarCadastros(sb) {
   ]);
   const comPartes = !partes.error;
   produtos.forEach(x => { x.partes = comPartes ? partes.data.filter(y => y.produto_id === x.id) : []; });
-  return { clientes, produtos, filamentos, comPartes };
+  // Combinações (sql/22, R115). Antes de instalar: sem combinações.
+  const comVariacoes = await carregarVariacoes(sb, produtos);
+  return { clientes, produtos, filamentos, comPartes, comVariacoes };
 }
 
 // ---------------------------------------------------------------- aba Diretos
@@ -316,7 +319,7 @@ async function abrirDetalhe(ctx, id) {
     const [prod, cst, lot] = await Promise.all([
       sb.from('vw_itens_producao').select('item_id, produzidas, de_estoque, faltam').eq('venda_id', id),
       sb.from('vw_pedido_custos').select('*').eq('venda_id', id),
-      sb.from('vw_pecas_prontas').select('produto_id, saldo').gt('saldo', 0),
+      sb.from('vw_pecas_prontas').select('*').gt('saldo', 0),
     ]);
     if (!prod.error && !cst.error && !lot.error) {
       itens.forEach(i => { i.producao = prod.data.find(x => x.item_id === i.id) || null; });
@@ -343,7 +346,7 @@ async function abrirDetalhe(ctx, id) {
     const botoes = produzivel && pr.faltam > 0 ? `
       <span class="linha-acoes acoes-item">
         ${p.status_pedido !== 'PRONTO' ? `<button type="button" class="botao botao-pequeno" data-produzir="${i.id}"><i class="ti ti-printer" aria-hidden="true"></i> Registrar produção</button>` : ''}
-        ${i.produto_id && lotesProntos.some(l => l.produto_id === i.produto_id) ? `<button type="button" class="botao botao-pequeno" data-usar-pronta="${i.id}">Usar peça pronta</button>` : ''}
+        ${i.produto_id && lotesProntos.some(l => l.produto_id === i.produto_id && (l.variacao_id || null) === (i.variacao_id || null)) ? `<button type="button" class="botao botao-pequeno" data-usar-pronta="${i.id}">Usar peça pronta</button>` : ''}
       </span>` : '';
     return `<span class="texto-secundario producao-item">${texto}</span>${botoes}`;
   };
@@ -618,7 +621,7 @@ export async function abrirNovoPedido({ aoConcluir } = {}) {
 }
 
 function abrirFormularioPedido(ctx, existente) {
-  const { sb, clientes, produtos, filamentos, recarregar } = ctx;
+  const { sb, clientes, produtos, filamentos, recarregar, comVariacoes } = ctx;
   const p = existente?.pedido || null;
   const editando = !!p;
   const hoje = hojeISO();
@@ -746,10 +749,29 @@ function abrirFormularioPedido(ctx, existente) {
   // Item já salvo com o mesmo produto: as partes copiadas para o pedido (podem
   // ser nenhuma, em pedido antigo). Item novo ou produto trocado: a ficha atual.
   const originais = new Map((existente?.itens || []).map(i => [i.id, i]));
-  function partesDoItem(el, produtoId) {
+  // Com combinação (R113): a ficha dela, se tiver; senão a do produto.
+  function partesDoItem(el, produtoId, variacaoId) {
     const salvo = el.dataset.id ? originais.get(el.dataset.id) : null;
-    if (salvo && salvo.produto_id === produtoId) return salvo.partes || [];
-    return produtoPorId(produtoId)?.partes || [];
+    if (salvo && salvo.produto_id === produtoId && (salvo.variacao_id || null) === variacaoId) return salvo.partes || [];
+    const v = variacaoPorId(produtoId, variacaoId);
+    return v?.temFicha ? v.partes : produtoPorId(produtoId)?.partes || [];
+  }
+  const variacaoPorId = (produtoId, id) => (id ? produtoPorId(produtoId)?.variacoes?.find(v => v.id === id) : null);
+  // Combinações ligadas do produto + a do item, se foi desligada depois (R115).
+  function opcoesVariacao(produtoId, atual) {
+    const vs = (produtoPorId(produtoId)?.variacoes || []).filter(v => v.ativo || v.id === atual);
+    return '<option value="">Escolha a combinação</option>' + vs.map(v =>
+      `<option value="${v.id}" ${v.id === atual ? 'selected' : ''}>${esc(v.descricao)} · ${v.preco == null ? 'sob consulta' : brl(v.preco)}${v.ativo ? '' : ' (desligada)'}</option>`).join('');
+  }
+  /** Mostra o campo da combinação só para produto que tem combinações. */
+  function ajustarVariacao(el, recriar) {
+    const caixa = el.querySelector('[data-campo-variacao]');
+    if (!caixa) return;
+    const catalogo = el.querySelector('[data-tipo]').value === 'catalogo';
+    const produtoId = el.querySelector('[data-produto]').value || null;
+    const tem = catalogo && !!produtoPorId(produtoId)?.variacoes?.length;
+    if (recriar) caixa.querySelector('[data-variacao]').innerHTML = opcoesVariacao(produtoId, null);
+    caixa.hidden = !tem;
   }
   function htmlCoresPartes(partes, produtoId) {
     if (!partes.length) return '';
@@ -773,10 +795,13 @@ function abrirFormularioPedido(ctx, existente) {
     const unica = el.querySelector('[data-cor-unica]');
     const catalogo = el.querySelector('[data-tipo]').value === 'catalogo';
     const produtoId = el.querySelector('[data-produto]').value || null;
-    const partes = catalogo && produtoId ? partesDoItem(el, produtoId) : [];
-    if (caixa.dataset.partesDe !== String(produtoId)) {
+    const campoVar = el.querySelector('[data-campo-variacao]');
+    const variacaoId = campoVar && !campoVar.hidden ? el.querySelector('[data-variacao]').value || null : null;
+    const partes = catalogo && produtoId ? partesDoItem(el, produtoId, variacaoId) : [];
+    const de = `${produtoId}|${variacaoId}`;
+    if (caixa.dataset.partesDe !== de) {
       caixa.innerHTML = htmlCoresPartes(partes, produtoId);
-      caixa.dataset.partesDe = String(produtoId);
+      caixa.dataset.partesDe = de;
     }
     caixa.hidden = !partes.length;
     unica.hidden = !catalogo || partes.length > 0;
@@ -805,6 +830,8 @@ function abrirFormularioPedido(ctx, existente) {
             <option value="">Escolha o produto</option>
             ${produtosOpcoes.map(x => `<option value="${x.id}" ${x.id === item.produto_id ? 'selected' : ''}>${esc(x.nome)}${x.ativo ? '' : ' (inativo)'}</option>`).join('')}
           </select></div>
+        ${comVariacoes ? `<div class="campo" data-campo-variacao ${catalogo && prod?.variacoes?.length ? '' : 'hidden'}><label>Combinação</label>
+          <select data-variacao>${opcoesVariacao(item.produto_id, item.variacao_id || null)}</select></div>` : ''}
         <div class="campo" data-so="catalogo" data-cor-unica ${catalogo ? '' : 'hidden'}><label>Cor <em>(opcional)</em></label>
           <select data-cor-catalogo>
             <option value="">Sem cor definida</option>
@@ -840,6 +867,7 @@ function abrirFormularioPedido(ctx, existente) {
 
   function adicionarItem(item) {
     itensEl.insertAdjacentHTML('beforeend', htmlItem(item));
+    ajustarVariacao(itensEl.lastElementChild, false);
     ajustarCores(itensEl.lastElementChild);
     atualizarResumo();
   }
@@ -864,6 +892,15 @@ function abrirFormularioPedido(ctx, existente) {
         cores = [...caixa.querySelectorAll('[data-cor-parte]')].map(x => x.value || null);
       }
       if (!item.produto_id) erro = `Item ${n}: escolha o produto.`;
+      // Combinação (R115): obrigatória em produto com combinações; item antigo
+      // sem combinação, do mesmo produto, continua como está (R121).
+      const campoVar = el.querySelector('[data-campo-variacao]');
+      if (campoVar && !campoVar.hidden) {
+        item.variacao_id = el.querySelector('[data-variacao]').value || null;
+        const salvo = el.dataset.id ? originais.get(el.dataset.id) : null;
+        const antigoSem = salvo && salvo.produto_id === item.produto_id && !salvo.variacao_id;
+        if (!erro && !item.variacao_id && !antigoSem) erro = `Item ${n}: escolha a combinação.`;
+      }
     } else {
       item.descricao = el.querySelector('[data-descricao]').value.trim();
       const cor = el.querySelector('[data-cor-personalizado]').value;
@@ -908,6 +945,7 @@ function abrirFormularioPedido(ctx, existente) {
       const catalogo = e.target.value === 'catalogo';
       el.querySelectorAll('[data-so="catalogo"]').forEach(x => { x.hidden = !catalogo; });
       el.querySelectorAll('[data-so="personalizado"]').forEach(x => { x.hidden = catalogo; });
+      ajustarVariacao(el, false);
       ajustarCores(el);
     }
     if (e.target.matches('[data-produto]')) {
@@ -916,7 +954,14 @@ function abrirFormularioPedido(ctx, existente) {
       const corSel = el.querySelector('[data-cor-catalogo]');
       corSel.innerHTML = '<option value="">Sem cor definida</option>' + (prod ? prod.cores.map(c =>
         `<option value="${c.material_id}">${esc(corDoFilamento(c))}${c.ativo ? '' : ' (inativo)'}</option>`).join('') : '');
-      el.querySelector('[data-preco]').value = prod && prod.preco_venda != null ? paraCampo(prod.preco_venda, 2, 2) : '';
+      // Com combinações, o preço vem da combinação escolhida (R114).
+      el.querySelector('[data-preco]').value = prod && !prod.variacoes?.length && prod.preco_venda != null ? paraCampo(prod.preco_venda, 2, 2) : '';
+      ajustarVariacao(el, true);
+      ajustarCores(el);
+    }
+    if (e.target.matches('[data-variacao]')) {
+      const v = variacaoPorId(el.querySelector('[data-produto]').value, e.target.value);
+      el.querySelector('[data-preco]').value = v && v.preco != null ? paraCampo(v.preco, 2, 2) : '';
       ajustarCores(el);
     }
     if (e.target.matches('[data-cor-personalizado]')) {
