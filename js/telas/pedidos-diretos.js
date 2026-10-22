@@ -10,6 +10,8 @@
 // pelo banco (R95–R100); aqui o detalhe mostra o andamento, o custo e o lucro.
 // Cores por parte (R94): itens de produtos com ficha copiam as partes da ficha
 // (pelo banco) e a cor de cada parte é gravada por definir_cores_partes.
+// Venda da Shopee (R106, R110, sql/19): o repasse confirmado aparece no
+// detalhe, com estorno; com repasse ativo, só o status muda.
 
 import { supabase, configurado } from '../supabase.js';
 import { ok } from '../db.js';
@@ -279,6 +281,13 @@ async function abrirDetalhe(ctx, id) {
     return;
   }
   if (!p) return;
+  // Repasses da Shopee (R106); antes do sql/19 a tabela não existe.
+  let repasses = [];
+  if (p.eh_shopee) {
+    const { data, error } = await sb.from('repasses_shopee').select('*').eq('venda_id', id).order('confirmado_em');
+    if (!error) repasses = data;
+  }
+  const repasse = repasses.find(r => r.situacao === 'ATIVO') || null;
   // Cores por parte (R94); antes do sql/14 a tabela não existe.
   if (ctx.comPartes && itens.length) {
     const { data, error } = await sb.from('item_venda_partes')
@@ -395,9 +404,12 @@ async function abrirDetalhe(ctx, id) {
         ${num(p.desconto) ? linha('Desconto', `− ${brl(p.desconto)}`) : ''}
         ${num(p.frete) ? linha('Frete', brl(p.frete)) : ''}
         ${linha(shopee ? 'Faturamento' : 'Total', brl(p.total), 'linha-destaque')}
-        ${shopee ? `${linha('Taxa da Shopee', `− ${brl(p.taxa_plataforma)}`)}${linha('Repasse estimado', brl(num(p.total) - num(p.taxa_plataforma)), 'linha-destaque')}
+        ${shopee ? `${linha('Taxa da Shopee', `− ${brl(p.taxa_plataforma)}`)}${repasse
+            ? linha('Repasse confirmado', brl(repasse.valor), 'linha-destaque')
+            : linha('Repasse estimado', brl(num(p.total) - num(p.taxa_plataforma)), 'linha-destaque')}
           ${num(p.frete_comprador) ? linha('Frete do comprador', brl(p.frete_comprador)) : ''}
-          <p class="campo-dica">O dinheiro entra no Caixa pelo repasse da Shopee, quando for confirmado. O frete do comprador fica com a Shopee.</p>`
+          <p class="campo-dica">${repasse ? `O repasse entrou no Caixa em ${dataBR(repasse.data)}.`
+            : 'O dinheiro entra no Caixa quando você confirmar o repasse em Pedidos › Shopee › Repasses para confirmar (aparece quando a planilha mostra o pedido como Concluído).'} O frete do comprador fica com a Shopee.</p>`
         : `${linha('Recebido', brl(p.valor_recebido))}
         ${num(p.valor_devolvido) ? linha('Devolvido', `− ${brl(p.valor_devolvido)}`) : ''}
         ${linha('Saldo a receber', brl(p.saldo), 'linha-destaque')}
@@ -425,9 +437,26 @@ async function abrirDetalhe(ctx, id) {
     <div class="form-acoes acoes-pedido">
       ${podeReceber ? '<button type="button" class="botao botao-primario" data-receber><i class="ti ti-cash" aria-hidden="true"></i> Registrar recebimento</button>' : ''}
       ${podeDevolver ? '<button type="button" class="botao" data-devolver><i class="ti ti-arrow-back-up" aria-hidden="true"></i> Registrar devolução</button>' : ''}
-      ${EDITAVEIS.includes(p.status_pedido) ? `<button type="button" class="botao" data-editar><i class="ti ti-pencil" aria-hidden="true"></i> ${shopee ? 'Editar venda' : 'Editar pedido'}</button>` : ''}
-      ${cancelado ? '' : '<button type="button" class="botao botao-perigo" data-cancelar>Cancelar pedido</button>'}
+      ${EDITAVEIS.includes(p.status_pedido) && !repasse ? `<button type="button" class="botao" data-editar><i class="ti ti-pencil" aria-hidden="true"></i> ${shopee ? 'Editar venda' : 'Editar pedido'}</button>` : ''}
+      ${cancelado || repasse ? '' : '<button type="button" class="botao botao-perigo" data-cancelar>Cancelar pedido</button>'}
     </div>
+    ${repasse ? '<p class="campo-dica">Repasse confirmado: agora só o status pode mudar. Para corrigir valores ou itens, ou para cancelar, estorne o repasse antes.</p>' : ''}
+
+    ${shopee && repasses.length ? `<p class="detalhe-titulo">Repasse da Shopee</p>
+    <ul class="lista">${repasses.map(r => {
+      const estornado = r.situacao === 'ESTORNADO';
+      return `<li class="linha ${estornado ? 'inativo' : ''}">
+        <span class="linha-texto">
+          <strong>Repasse ${estornado ? '<span class="selo-p selo-inativo">Estornado</span>' : ''}</strong>
+          <span class="texto-secundario">${dataBR(r.data)} · taxa ${brl(r.taxa)}${r.observacao ? ` · ${esc(r.observacao)}` : ''}</span>
+          ${estornado ? `<span class="texto-secundario">Estornado em ${dataHoraBR(r.estornado_em)}: ${esc(r.motivo_estorno)}</span>` : ''}
+        </span>
+        <span class="linha-direita">
+          <strong class="linha-valor ${estornado ? 'riscado' : 'valor-entrada'}">${brl(r.valor)}</strong>
+          ${estornado ? '' : `<button type="button" class="botao botao-pequeno" data-estornar-repasse="${r.id}">Estornar</button>`}
+        </span>
+      </li>`;
+    }).join('')}</ul>` : ''}
 
     ${shopee ? '' : `<p class="detalhe-titulo">Pagamentos e devoluções</p>
     <ul class="lista">${pagamentosHtml}</ul>`}
@@ -525,6 +554,19 @@ async function abrirDetalhe(ctx, id) {
       await depois(`Devolução de ${brl(v.valor)} registrada no pedido ${p.numero_formatado} e no Caixa.`);
     },
   }); });
+
+  dialog.querySelector('[data-estornar-repasse]')?.addEventListener('click', () => abrirMotivo({
+    titulo: `Estornar repasse de ${brl(repasse.valor)}`,
+    explicacao: `Use só para corrigir um repasse confirmado por engano (${dataBR(repasse.data)}). `
+      + 'O registro continua visível, a venda volta a "Repasse a receber" e a taxa volta a ser a de antes. '
+      + 'O Caixa recebe o estorno com a data de hoje.',
+    rotulo: 'Motivo do estorno',
+    textoSalvar: 'Estornar',
+    async aoSalvar(motivo) {
+      await sb.rpc('estornar_repasse_shopee', { p_repasse_id: repasse.id, p_motivo: motivo }).then(ok);
+      await depois(`Repasse estornado na venda ${p.numero_formatado}.`);
+    },
+  }));
 
   dialog.querySelectorAll('[data-estornar]').forEach(b => b.addEventListener('click', () => {
     const [tipo, lid] = b.dataset.estornar.split(':');

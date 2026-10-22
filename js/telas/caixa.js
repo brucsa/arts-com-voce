@@ -96,7 +96,8 @@ async function desenhar(area, recarregar) {
       ${extrato.length ? `<ul class="lista">${extrato.map(m => {
         const entrada = m.tipo === 'ENTRADA';
         // Movimentos que vêm de um Pedido Direto são corrigidos no próprio pedido.
-        const doPedido = m.origem === 'RECEBIMENTO' || m.origem === 'REEMBOLSO';
+        // O repasse da Shopee é estornado no detalhe da venda (R106).
+        const doPedido = m.origem === 'RECEBIMENTO' || m.origem === 'REEMBOLSO' || m.origem === 'REPASSE_SHOPEE';
         // O pagamento ao Joca é estornado na área Joca ⭐ (R91).
         const doJoca = m.origem === 'PAGAMENTO_JOCA';
         const podeEstornar = m.origem !== 'ESTORNO' && !m.estornado && !doPedido && !doJoca;

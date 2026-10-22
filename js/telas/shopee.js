@@ -2,12 +2,14 @@
 // Importa a planilha da Shopee com prévia e confirmação. A importação não cria
 // vendas e não mexe no Caixa, no estoque nem na comissão do Joca (R70). Cada
 // pedido pode virar venda por escolha da Admin, com "Registrar como venda"
-// (R102, sql/17).
+// (R102, sql/17). No topo: "Repasses para confirmar" (R106) e os avisos de
+// venda cancelada ou devolvida na Shopee (R109), do sql/19.
 
 import { supabase, configurado } from '../supabase.js';
 import { ok } from '../db.js';
-import { esc, brl, dataHoraBR, dataBR } from '../format.js';
+import { esc, brl, dataHoraBR, dataBR, hojeISO, lerDecimal } from '../format.js';
 import { cliqueForaDoDialogo } from '../ui/dialogo.js';
+import { abrirFormulario } from '../ui/formulario.js';
 import { lerPlanilhaShopee, paraEnvio, centavos } from '../shopee-planilha.js';
 import { abrirVendaShopee, vendasShopeeInstaladas } from './venda-shopee.js';
 
@@ -40,6 +42,7 @@ function somar(lista, campos) {
 /**
  * opcoes.mensagem: aviso para mostrar ao abrir (ex.: depois de importar pela tela Pedidos).
  * opcoes.aoRegistrarVenda(mensagem, id): depois de registrar uma venda (abre o pedido na aba Diretos).
+ * opcoes.aoAbrirVenda(id): abre a venda na aba Diretos (avisos da Shopee).
  */
 export function telaShopee(el, opcoes = {}) {
   if (!configurado) {
@@ -98,6 +101,7 @@ async function desenhar(area, recarregar, mensagem, opcoes = {}) {
   const notaFalta = n => (n ? `<p class="metrica-nota">${n} valor(es) não informado(s) na planilha ficaram de fora.</p>` : '');
 
   area.innerHTML = `
+    <div data-repasses></div>
     <section class="cartao filtros">
       <label class="campo campo-compacto"><span>Buscar</span>
         <input type="search" name="busca" value="${esc(filtro.busca)}" placeholder="Pedido, produto ou rastreio"></label>
@@ -170,6 +174,7 @@ async function desenhar(area, recarregar, mensagem, opcoes = {}) {
       : `<p class="texto-secundario vazio">${todos.length ? 'Nenhum pedido com esses filtros.' : 'Nenhum pedido importado ainda.'}</p>`;
   }
   mostrar();
+  await desenharRepasses(sb, area.querySelector('[data-repasses]'), recarregar, opcoes);
 
   const filtros = area.querySelector('.filtros');
   filtros.addEventListener('change', e => {
@@ -201,6 +206,122 @@ async function desenhar(area, recarregar, mensagem, opcoes = {}) {
       erroEl.textContent = `${e.message || 'Não foi possível ler a planilha.'}${/Nada foi importado/.test(e.message || '') ? '' : ' Nada foi importado.'}`;
       erroEl.hidden = false;
     }
+  });
+}
+
+// ---------------------------------------------------------------- repasses e avisos (sql/19)
+
+/** Código de envio: repetir o mesmo envio não grava duas vezes. */
+function novaChave() {
+  if (crypto.randomUUID) return crypto.randomUUID();
+  const b = crypto.getRandomValues(new Uint8Array(16));
+  b[6] = (b[6] & 0x0f) | 0x40; b[8] = (b[8] & 0x3f) | 0x80;
+  const h = [...b].map(x => x.toString(16).padStart(2, '0')).join('');
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
+}
+const num = v => Number(v || 0);
+
+/** Repasses para confirmar (R106) e avisos de cancelado ou devolvido (R109). Antes do sql/19, nada aparece. */
+async function desenharRepasses(sb, el, recarregar, opcoes) {
+  const [pend, av] = await Promise.all([
+    sb.from('vw_repasses_shopee_pendentes').select('*').order('data').order('numero'),
+    sb.from('vw_avisos_shopee').select('*').order('numero'),
+  ]);
+  if (pend.error || av.error) { el.remove(); return; }
+  const pendentes = pend.data, avisos = av.data;
+  if (!pendentes.length && !avisos.length) { el.remove(); return; }
+
+  el.innerHTML = `
+    ${avisos.length ? `<section class="cartao cartao-avisos-shopee">
+      <div class="cartao-topo"><h3>Avisos da Shopee (${avisos.length})</h3></div>
+      <p class="texto-secundario nota-topo">A planilha mostra estas vendas como canceladas ou devolvidas na Shopee. Você decide:
+        cancelar a venda (devolução total), editar tirando os itens devolvidos (devolução parcial) ou manter como está.</p>
+      <ul class="lista">${avisos.map(a => `
+        <li class="linha">
+          <div class="linha-texto">
+            <strong>Venda ${esc(a.numero_formatado)} · Pedido ${esc(a.pedido_shopee)}
+              <span class="selo-p selo-despesa">${a.tipo === 'CANCELADO' ? 'Cancelado na Shopee' : 'Devolução na Shopee'}</span></strong>
+            <span class="texto-secundario">Status na Shopee: ${esc(a.status_shopee || 'sem status')}${a.status_devolucao ? ` · Devolução: ${esc(a.status_devolucao)}` : ''}</span>
+            ${a.tem_repasse ? '<span class="texto-secundario">O repasse já foi confirmado: para cancelar ou editar, estorne o repasse antes, no detalhe da venda.</span>' : ''}
+          </div>
+          <div class="linha-direita"><div class="linha-acoes">
+            ${opcoes.aoAbrirVenda ? `<button type="button" class="botao botao-pequeno botao-primario" data-abrir-venda="${a.venda_id}">Abrir venda</button>` : ''}
+            <button type="button" class="botao botao-pequeno" data-manter="${a.venda_id}">Manter como está</button>
+          </div></div>
+        </li>`).join('')}</ul>
+    </section>` : ''}
+    ${pendentes.length ? `<section class="cartao">
+      <div class="cartao-topo"><h3>Repasses para confirmar (${pendentes.length})</h3></div>
+      <p class="texto-secundario nota-topo">Vendas com o pedido Concluído na Shopee. Confira o repasse na Shopee e confirme:
+        só então o valor entra no Caixa e a comissão do Joca fica disponível.</p>
+      <ul class="lista">${pendentes.map(r => `
+        <li class="linha">
+          <div class="linha-texto">
+            <strong>Venda ${esc(r.numero_formatado)} · Pedido ${esc(r.pedido_shopee)}</strong>
+            <span class="texto-secundario">Faturamento ${brl(r.faturamento)} − taxa ${brl(r.taxa_plataforma)} · data sugerida ${esc(dataBR(r.data_sugerida))}</span>
+          </div>
+          <div class="linha-direita">
+            <span class="linha-valor">${brl(r.repasse_estimado)}</span>
+            <div class="linha-acoes"><button type="button" class="botao botao-pequeno botao-primario" data-confirmar="${r.venda_id}">Confirmar repasse</button></div>
+          </div>
+        </li>`).join('')}</ul>
+    </section>` : ''}`;
+
+  el.addEventListener('click', e => {
+    const c = e.target.closest('[data-confirmar]');
+    if (c) { abrirConfirmarRepasse(sb, pendentes.find(r => r.venda_id === c.dataset.confirmar), recarregar); return; }
+    const v = e.target.closest('[data-abrir-venda]');
+    if (v) { opcoes.aoAbrirVenda?.(v.dataset.abrirVenda); return; }
+    const m = e.target.closest('[data-manter]');
+    if (m) abrirManterVenda(sb, avisos.find(a => a.venda_id === m.dataset.manter), recarregar);
+  });
+}
+
+function abrirConfirmarRepasse(sb, r, recarregar) {
+  const chave = novaChave();
+  const fat = num(r.faturamento);
+  abrirFormulario({
+    titulo: `Confirmar repasse · Venda ${r.numero_formatado}`,
+    textoSalvar: 'Confirmar repasse',
+    valores: { valor: num(r.repasse_estimado), data: r.data_sugerida, observacao: '', confirmado: false },
+    campos: [
+      { nome: 'valor', rotulo: 'Valor do repasse (R$)', tipo: 'decimal', casas: 2, casasMin: 2, obrigatorio: true, maiorQueZero: true, recarrega: true,
+        dica: v => {
+          // Enquanto edita, o campo guarda o texto digitado (ex.: "50,00").
+          const valor = typeof v.valor === 'number' ? v.valor : lerDecimal(String(v.valor ?? ''), 2);
+          const taxa = Math.round((fat - valor) * 100) / 100;
+          return `Estimado: ${brl(r.repasse_estimado)} (faturamento ${brl(fat)} − taxa ${brl(r.taxa_plataforma)}). `
+            + (valor > 0 && valor <= fat && Math.abs(valor - num(r.repasse_estimado)) >= 0.005
+              ? `Com este valor, a taxa da Shopee da venda passa a ser ${brl(taxa)}.` : 'Se caiu outro valor, digite o que caiu: a taxa da venda é ajustada.');
+        } },
+      { nome: 'data', rotulo: 'Data do repasse', tipo: 'data', obrigatorio: true, maxData: hojeISO(),
+        dica: `Sugerida: o dia da importação da planilha. Entre ${dataBR(r.data)} (data da venda) e hoje.` },
+      { nome: 'observacao', rotulo: 'Observação', tipo: 'texto' },
+      { nome: 'confirmado', rotulo: 'Conferi este repasse na Shopee', tipo: 'checkbox',
+        dica: 'Só confirme o que já apareceu na sua carteira da Shopee.' },
+    ],
+    async aoSalvar(v) {
+      if (!v.confirmado) throw new Error('Marque a confirmação: só confirme repasses conferidos na Shopee.');
+      await sb.rpc('confirmar_repasse_shopee', {
+        p_venda_id: r.venda_id, p_data: v.data, p_valor: v.valor, p_observacao: v.observacao, p_confirmado: true, p_chave: chave,
+      }).then(ok);
+      await recarregar(`Repasse de ${brl(v.valor)} da venda ${r.numero_formatado} confirmado e lançado no Caixa.`);
+    },
+  });
+}
+
+function abrirManterVenda(sb, a, recarregar) {
+  abrirFormulario({
+    titulo: `Manter a venda ${a.numero_formatado} como está`,
+    textoSalvar: 'Manter como está',
+    campos: [
+      { nome: 'motivo', rotulo: 'Motivo', tipo: 'texto', obrigatorio: true, placeholder: 'Ex.: devolução recusada pela Shopee',
+        dica: 'O aviso some e fica registrado. Se o status do pedido mudar de novo na planilha, o aviso volta.' },
+    ],
+    async aoSalvar(v) {
+      await sb.rpc('dispensar_aviso_shopee', { p_venda_id: a.venda_id, p_motivo: v.motivo }).then(ok);
+      await recarregar(`Venda ${a.numero_formatado} mantida como está.`);
+    },
   });
 }
 

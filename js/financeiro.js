@@ -29,6 +29,7 @@ export const ORIGEM = {
   RECEBIMENTO: 'Recebimento de pedido',   // Pedidos Diretos → Caixa
   REEMBOLSO: 'Devolução a cliente',       // Pedidos Diretos → Caixa
   PAGAMENTO_JOCA: 'Pagamento ao Joca',    // Área do Joca (R91)
+  REPASSE_SHOPEE: 'Repasse Shopee',       // Vendas da Shopee (R106)
 };
 
 /** "2026-10" → { inicio: '2026-10-01', fim: '2026-10-31' } */

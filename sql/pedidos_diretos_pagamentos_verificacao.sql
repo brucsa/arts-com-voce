@@ -25,6 +25,10 @@ somas as (
          coalesce((select sum(r.valor) from public.recebimentos_venda r where r.venda_id = v.id and r.situacao = 'ATIVO'), 0) as r,
          coalesce((select sum(d.valor) from public.devolucoes_venda d where d.venda_id = v.id and d.situacao = 'ATIVO'), 0) as d
     from public.vendas v
+   -- Só os pedidos diretos (texto anterior: sem este filtro). Na venda da
+   -- Shopee o dinheiro entra pelo repasse, conferido em
+   -- sql/repasses_shopee_verificacao.sql (Lote C2).
+   where to_jsonb(v) ->> 'shopee_pedido_ref' is null
 ),
 checagens (ordem, verificacao, passou, detalhe) as (
 

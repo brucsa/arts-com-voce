@@ -55,7 +55,9 @@ export function telaPedidos(el) {
     });
     painel.setAttribute('aria-labelledby', `aba-${id}`);
     if (id === 'shopee') {
-      const opcoes = { ...(pendenteShopee || {}), aoRegistrarVenda: async (msg, vendaId) => { mostrarPedidoDireto(msg, vendaId); mostrar('diretos'); } };
+      const opcoes = { ...(pendenteShopee || {}),
+        aoRegistrarVenda: async (msg, vendaId) => { mostrarPedidoDireto(msg, vendaId); mostrar('diretos'); },
+        aoAbrirVenda: vendaId => { mostrarPedidoDireto(null, vendaId); mostrar('diretos'); } };
       pendenteShopee = null;
       telaShopee(painel, opcoes);
     } else desenharDiretos(painel);
