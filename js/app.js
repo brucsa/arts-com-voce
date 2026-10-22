@@ -22,12 +22,10 @@ import { abrirNovaCompra } from './telas/compra.js';
 const app = document.getElementById('app');
 const estado = { perfil: null, demo: false };
 
-const LOGO = `<img class="logo-marca" src="img/flor.png" alt="" width="36" height="36">`;
+const LOGO = `<img class="logo-marca" src="img/logo-320.png" srcset="img/logo-320.png 1x, img/logo-640.png 2x" alt="Arts com Você" width="320" height="124">`;
 
 const marca = () => `
-  <div class="marca">${LOGO}
-    <div><strong>Arts com Você</strong><span>Ideias que ganham forma</span></div>
-  </div>`;
+  <div class="marca">${LOGO}</div>`;
 
 // ---------------------------------------------------------------- início
 

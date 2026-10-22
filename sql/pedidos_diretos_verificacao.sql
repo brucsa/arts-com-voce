@@ -171,9 +171,14 @@ checagens (ordem, verificacao, passou, detalhe) as (
                          or (select u.status_novo from ultimo_status u where u.venda_id = v.id) is distinct from v.status_pedido), ''
 
   union all
-  select 20, 'Todos os pedidos estão num único canal, sem repasse (Boca a Boca, R78)',
-         (select count(distinct canal_id) <= 1 from public.vendas)
-     and not exists (select 1 from public.vendas v join public.canais c on c.id = v.canal_id where c.usa_repasse),
+  -- Atualizada na v1.9 (R104): as vendas da Shopee ficam no canal Shopee.
+  -- Antes: "Todos os pedidos estão num único canal, sem repasse (Boca a Boca, R78)".
+  select 20, 'Pedidos diretos num único canal, sem repasse (Boca a Boca, R78); vendas da Shopee no canal Shopee (R104)',
+         (select count(distinct v.canal_id) <= 1 from public.vendas v where to_jsonb(v) ->> 'shopee_pedido_ref' is null)
+     and not exists (select 1 from public.vendas v join public.canais c on c.id = v.canal_id
+                      where to_jsonb(v) ->> 'shopee_pedido_ref' is null and c.usa_repasse)
+     and not exists (select 1 from public.vendas v join public.canais c on c.id = v.canal_id
+                      where to_jsonb(v) ->> 'shopee_pedido_ref' is not null and lower(trim(c.nome)) <> 'shopee'),
          (select count(*) from public.clientes)::text || ' cliente(s) · '
            || (select count(*) from public.itens_venda)::text || ' item(ns)'
 )

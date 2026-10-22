@@ -1,12 +1,15 @@
-// Módulo · Pedidos da Shopee (só Admin, só consulta)
-// Importa a planilha da Shopee com prévia e confirmação. Não cria vendas e
-// não mexe no Caixa, no estoque nem na comissão do Joca.
+// Módulo · Pedidos da Shopee (só Admin)
+// Importa a planilha da Shopee com prévia e confirmação. A importação não cria
+// vendas e não mexe no Caixa, no estoque nem na comissão do Joca (R70). Cada
+// pedido pode virar venda por escolha da Admin, com "Registrar como venda"
+// (R102, sql/17).
 
 import { supabase, configurado } from '../supabase.js';
 import { ok } from '../db.js';
 import { esc, brl, dataHoraBR, dataBR } from '../format.js';
 import { cliqueForaDoDialogo } from '../ui/dialogo.js';
 import { lerPlanilhaShopee, paraEnvio, centavos } from '../shopee-planilha.js';
+import { abrirVendaShopee, vendasShopeeInstaladas } from './venda-shopee.js';
 
 const NAO_INFORMADO = '<span class="nao-informado">Não informado</span>';
 const filtro = { busca: '', status: '', mes: '' };
@@ -34,28 +37,57 @@ function somar(lista, campos) {
   return { total, faltou };
 }
 
-export function telaShopee(el) {
+/**
+ * opcoes.mensagem: aviso para mostrar ao abrir (ex.: depois de importar pela tela Pedidos).
+ * opcoes.aoRegistrarVenda(mensagem, id): depois de registrar uma venda (abre o pedido na aba Diretos).
+ */
+export function telaShopee(el, opcoes = {}) {
   if (!configurado) {
     el.innerHTML = '<section class="cartao"><p class="texto-secundario">Pedidos da Shopee precisam do Supabase configurado.</p></section>';
     return;
   }
-  carregar(el);
+  carregar(el, opcoes.mensagem, opcoes);
 }
 
-async function carregar(el, mensagem) {
+async function carregar(el, mensagem, opcoes = {}) {
   const area = document.createElement('div');
   area.className = 'painel-area';
   area.innerHTML = '<p class="texto-secundario">Carregando…</p>';
   el.replaceChildren(area);
   try {
-    await desenhar(area, (msg) => carregar(el, msg), mensagem);
+    await desenhar(area, (msg) => carregar(el, msg, opcoes), mensagem, opcoes);
   } catch (e) {
     area.innerHTML = `<p class="aviso aviso-erro" role="alert">${esc(e.message)}</p>`;
   }
 }
 
-async function desenhar(area, recarregar, mensagem) {
+/** Lê a planilha, mostra a prévia e importa ao confirmar. Usada também pela tela Pedidos (R111). */
+export async function importarPlanilhaShopee(arquivo, aoConcluir) {
   const sb = await supabase();
+  const lido = await lerPlanilhaShopee(arquivo);
+  const envio = paraEnvio(lido.pedidos);
+  const previa = envio.length
+    ? await sb.rpc('importar_pedidos_shopee', {
+        p_arquivo: arquivo.name, p_linhas: lido.linhas, p_com_erro: 0, p_pedidos: envio, p_confirmar: false,
+      }).then(ok)
+    : { novos: 0, atualizados: 0, iguais: 0, com_aviso: 0, pedidos: [] };
+  abrirPrevia({ sb, arquivo, lido, envio, previa, aoConcluir });
+}
+
+async function desenhar(area, recarregar, mensagem, opcoes = {}) {
+  const sb = await supabase();
+  // Vendas já registradas a partir dos pedidos (R102). Antes do sql/17 não existem.
+  const comVendas = await vendasShopeeInstaladas(sb);
+  const vendaDe = comVendas ? Object.fromEntries((await sb.from('vendas').select('id, numero, shopee_pedido_ref')
+    .not('shopee_pedido_ref', 'is', null).then(ok)).map(v => [v.shopee_pedido_ref, v])) : {};
+  const cancelado = p => /cancel/i.test(p.status || '');
+  const registrar = async p => {
+    try {
+      await abrirVendaShopee(sb, { shopee: p, aoConcluir: async (msg, id) => {
+        if (opcoes.aoRegistrarVenda) await opcoes.aoRegistrarVenda(msg, id); else await recarregar(msg);
+      } });
+    } catch (e) { window.alert(e.message); }
+  };
   const todos = await sb.from('shopee_pedidos')
     .select('*, itens:shopee_pedido_itens(*)')
     .order('criado_em', { ascending: false, nullsFirst: false })
@@ -90,7 +122,8 @@ async function desenhar(area, recarregar, mensagem) {
         </div>
       </div>
       <p class="texto-secundario nota-topo">Na Shopee: Meus Pedidos › Exportar › baixe o arquivo em Histórico de Relatórios e escolha aqui.
-        Só consulta: nada vai para o Caixa, o estoque, as vendas ou a comissão do Joca.</p>
+        ${comVendas ? 'A importação não cria vendas nem mexe no Caixa. Para um pedido entrar nos seus pedidos, use “Registrar como venda”.'
+          : 'Só consulta: nada vai para o Caixa, o estoque, as vendas ou a comissão do Joca.'}</p>
       <p class="aviso aviso-ok" role="status" ${mensagem ? '' : 'hidden'}>${esc(mensagem || '')}</p>
       <p class="aviso aviso-erro" role="alert" hidden data-erro></p>
       <div data-lista></div>
@@ -128,7 +161,10 @@ async function desenhar(area, recarregar, mensagem) {
           </div>
           <div class="linha-direita">
             <span class="linha-valor">${real(p.total_global)}</span>
-            <div class="linha-acoes"><button class="botao botao-pequeno" data-ver="${esc(p.pedido_id)}">Detalhes</button></div>
+            <div class="linha-acoes">
+              ${vendaDe[p.id] ? `<span class="selo-p selo-ativo">Venda #${String(vendaDe[p.id].numero).padStart(4, '0')}</span>`
+                : comVendas && !cancelado(p) ? `<button class="botao botao-pequeno botao-primario" data-registrar="${esc(p.pedido_id)}">Registrar como venda</button>` : ''}
+              <button class="botao botao-pequeno" data-ver="${esc(p.pedido_id)}">Detalhes</button></div>
           </div>
         </li>`).join('')}</ul>`
       : `<p class="texto-secundario vazio">${todos.length ? 'Nenhum pedido com esses filtros.' : 'Nenhum pedido importado ainda.'}</p>`;
@@ -143,8 +179,13 @@ async function desenhar(area, recarregar, mensagem) {
   });
   filtros.querySelector('[name=busca]').addEventListener('input', e => { filtro.busca = e.target.value; mostrar(); });
   listaEl.addEventListener('click', e => {
+    const r = e.target.closest('[data-registrar]');
+    if (r) { registrar(todos.find(p => p.pedido_id === r.dataset.registrar)); return; }
     const b = e.target.closest('[data-ver]');
-    if (b) abrirDetalhe(todos.find(p => p.pedido_id === b.dataset.ver));
+    if (b) {
+      const p = todos.find(x => x.pedido_id === b.dataset.ver);
+      abrirDetalhe(p, { venda: vendaDe[p.id], podeRegistrar: comVendas && !cancelado(p) && !vendaDe[p.id], registrar });
+    }
   });
 
   const erroEl = area.querySelector('[data-erro]');
@@ -155,14 +196,7 @@ async function desenhar(area, recarregar, mensagem) {
     if (!arquivo) return;
     erroEl.hidden = true;
     try {
-      const lido = await lerPlanilhaShopee(arquivo);
-      const envio = paraEnvio(lido.pedidos);
-      const previa = envio.length
-        ? await sb.rpc('importar_pedidos_shopee', {
-            p_arquivo: arquivo.name, p_linhas: lido.linhas, p_com_erro: 0, p_pedidos: envio, p_confirmar: false,
-          }).then(ok)
-        : { novos: 0, atualizados: 0, iguais: 0, com_aviso: 0, pedidos: [] };
-      abrirPrevia({ sb, arquivo, lido, envio, previa, aoConcluir: recarregar });
+      await importarPlanilhaShopee(arquivo, recarregar);
     } catch (e) {
       erroEl.textContent = `${e.message || 'Não foi possível ler a planilha.'}${/Nada foi importado/.test(e.message || '') ? '' : ' Nada foi importado.'}`;
       erroEl.hidden = false;
@@ -256,7 +290,7 @@ function abrirPrevia({ sb, arquivo, lido, envio, previa, aoConcluir }) {
 
 // ---------------------------------------------------------------- detalhe
 
-function abrirDetalhe(p) {
+function abrirDetalhe(p, { venda = null, podeRegistrar = false, registrar } = {}) {
   if (!p) return;
   const linha = (rotulo, valor) => `<li class="linha linha-dado"><span>${rotulo}</span><strong>${valor}</strong></li>`;
   const dialog = document.createElement('dialog');
@@ -311,12 +345,15 @@ function abrirDetalhe(p) {
       ${linha('Envio previsto até', quando(p.envio_previsto))}
       ${linha('Enviado em', quando(p.enviado_em))}
     </ul>
-    <p class="texto-secundario nota">Última atualização no sistema: ${esc(dataHoraBR(p.updated_at))}.</p>`;
+    <p class="texto-secundario nota">Última atualização no sistema: ${esc(dataHoraBR(p.updated_at))}.</p>
+    ${venda ? `<p class="aviso aviso-ok">Este pedido já é a venda #${String(venda.numero).padStart(4, '0')} nos seus pedidos (aba Diretos).</p>` : ''}
+    ${podeRegistrar ? '<div class="form-acoes"><span class="espaco"></span><button type="button" class="botao botao-primario" data-registrar-detalhe>Registrar como venda</button></div>' : ''}`;
 
   document.body.append(dialog);
   dialog.addEventListener('close', () => dialog.remove());
   dialog.addEventListener('click', e => {
     if (cliqueForaDoDialogo(e, dialog) || e.target.closest('[data-fechar]')) dialog.close();
   });
+  dialog.querySelector('[data-registrar-detalhe]')?.addEventListener('click', () => { dialog.close(); registrar(p); });
   dialog.showModal();
 }

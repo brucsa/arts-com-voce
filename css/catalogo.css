@@ -1,28 +1,33 @@
 /* Arts com Você · Catálogo público (R85–R88). Página independente da área administrativa. */
 :root {
-  --creme: #FBF6EF;
+  --creme: #FCF2EB;
   --papel: #FFFFFF;
   --tinta: #2B2233;
   --tinta-2: #6B5F72;
   --linha: #ECE3D8;
   --linha-forte: #DCCFBF;
-  --azul: #007FFC;
-  --azul-escuro: #0062C4;
-  --azul-claro: #E3F0FF;
-  --ambar: #F2B544;
-  --ambar-claro: #FDF2DA;
+  --azul: #3A6D7C;
+  --lagune: #6398A9;
+  --azul-escuro: #2F5B68;
+  --azul-claro: #E3EFF2;
+  --ambar: #F9B95C;
+  --ambar-claro: #FEF0DA;
   --ambar-escuro: #8A5A06;
-  --verde: #1C6B5E;
-  --verde-escuro: #14524A;
+  --verde: #2F6B55;
+  --menta: #96C7B3;
+  --nectarine: #D7897F;
+  --lilas: #CCA1D1;
+  --verde-escuro: #24533F;
   --erro: #C2362B;
   --raio: 14px;
   --fonte: 'Nunito', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --fonte-titulo: 'Baloo 2', 'Nunito', system-ui, sans-serif;
 }
 * { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }
 body {
   margin: 0; min-height: 100vh; background: var(--creme); color: var(--tinta);
-  font-family: var(--fonte); font-weight: 600; line-height: 1.4;
+  font-family: var(--fonte); font-weight: 400; line-height: 1.45;
   padding-bottom: calc(76px + env(safe-area-inset-bottom));
 }
 img { max-width: 100%; display: block; }
@@ -37,16 +42,21 @@ svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width:
   padding: 14px 16px; background: var(--papel); border-bottom: 1px solid var(--linha);
 }
 .marca { display: flex; align-items: center; gap: 10px; text-decoration: none; color: inherit; flex: 1; min-width: 0; }
-.marca img { width: 40px; height: 40px; object-fit: contain; }
-.marca strong { display: block; font-size: 1.25rem; font-weight: 900; line-height: 1.1; color: var(--azul-escuro); }
-.marca small { display: block; font-size: .76rem; line-height: 1.25; color: var(--tinta-2); }
+.marca { flex-direction: column; align-items: flex-start; gap: 2px; }
+.marca img { height: 48px; width: auto; max-width: 100%; display: block; }
+.marca small { display: block; font-size: .74rem; line-height: 1.25; color: var(--tinta-2); }
+h1, h2, h3, .chamada h1, .cartao-nome { font-family: var(--fonte-titulo); font-weight: 800; }
+/* Azul Lagune: títulos e destaques (tom escuro do Lagune para leitura sobre o creme) */
+h1, h2, h3, .titulo { color: var(--azul); }
+.chamada h1 { color: #fff; }
+strong, b { font-weight: 700; }
 .botao-carrinho {
   position: relative; width: 44px; height: 44px; border-radius: 22px; background: var(--azul); color: #fff;
   display: flex; align-items: center; justify-content: center; flex: none;
 }
 .contador {
   position: absolute; top: -3px; right: -3px; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 10px;
-  background: var(--ambar); color: var(--tinta); font-size: .75rem; font-weight: 900;
+  background: var(--ambar); color: var(--tinta); font-size: .75rem; font-weight: 700;
   display: flex; align-items: center; justify-content: center;
 }
 .contador[hidden] { display: none; }
@@ -56,7 +66,7 @@ main { max-width: 1080px; margin: 0 auto; padding: 16px; }
 #conteudo:focus, #conteudo:focus-visible { outline: none; }
 .carregando, .vazio { text-align: center; color: var(--tinta-2); padding: 40px 0; }
 .chamada { background: var(--azul); color: #fff; border-radius: 16px; padding: 18px 18px 20px; margin-bottom: 16px; }
-.chamada h1 { margin: 0 0 6px; font-size: 1.4rem; font-weight: 900; line-height: 1.15; }
+.chamada h1 { margin: 0 0 6px; font-size: 1.4rem; font-weight: 700; line-height: 1.15; }
 .chamada p { margin: 0; color: var(--azul-claro); font-size: .95rem; }
 .busca {
   display: flex; align-items: center; gap: 8px; background: var(--papel); border: 1px solid var(--linha-forte);
@@ -76,21 +86,25 @@ main { max-width: 1080px; margin: 0 auto; padding: 16px; }
 .sem-foto { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
 .sem-foto img { width: 38%; height: auto; object-fit: contain; opacity: .55; }
 .cartao-corpo { padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 4px; flex: 1; }
-.cartao-nome { margin: 0; font-size: 1rem; font-weight: 800; line-height: 1.2; }
+.cartao-nome { margin: 0; font-size: 1rem; font-weight: 700; line-height: 1.2; }
 .cartao-nome a { color: inherit; text-decoration: none; }
-.preco { font-size: 1.05rem; font-weight: 900; color: var(--azul-escuro); }
-.preco-consulta { color: var(--ambar-escuro); }
+/* Amarelo Pêche: preços (etiqueta Pêche com texto escuro, contraste 8,9:1) */
+.preco {
+  display: inline-block; width: fit-content; padding: 2px 10px; border-radius: 999px;
+  background: var(--ambar); color: var(--tinta); font-size: 1.05rem; font-weight: 700;
+}
+.preco-consulta { background: var(--ambar-claro); color: var(--ambar-escuro); }
 .cores-linha { font-size: .82rem; color: var(--tinta-2); }
 .cartao-corpo .espaco { flex: 1; }
 .botao {
   display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 0 16px;
-  border: 0; border-radius: 10px; font-weight: 800; font-size: .95rem; cursor: pointer; text-decoration: none;
+  border: 0; border-radius: 10px; font-weight: 700; font-size: .95rem; cursor: pointer; text-decoration: none;
   background: var(--azul-claro); color: var(--azul-escuro);
 }
-.botao:hover { background: #d3e6ff; }
-.botao-cheio { background: var(--azul); color: #fff; min-height: 52px; font-size: 1.05rem; font-weight: 900; width: 100%; }
+.botao:hover { background: #D2E4EA; }
+.botao-cheio { background: var(--azul); color: #fff; min-height: 52px; font-size: 1.05rem; font-weight: 700; width: 100%; }
 .botao-cheio:hover { background: var(--azul-escuro); }
-.botao-whats { background: var(--verde); color: #fff; min-height: 54px; font-size: 1.05rem; font-weight: 900; width: 100%; }
+.botao-whats { background: var(--verde); color: #fff; min-height: 54px; font-size: 1.05rem; font-weight: 700; width: 100%; }
 .botao-whats:hover { background: var(--verde-escuro); }
 .botao-whats[aria-disabled="true"] { background: #8D98A3; cursor: not-allowed; }
 .botao-texto { background: transparent; }
@@ -98,10 +112,10 @@ main { max-width: 1080px; margin: 0 auto; padding: 16px; }
 .botao-borda:hover { background: var(--azul-claro); }
 .botao-mais-itens { margin-bottom: 14px; }
 .aviso-adicionado {
-  margin: 0 0 16px; padding: 12px 14px; border-radius: 12px; background: #DDF2EE; color: var(--verde-escuro); font-weight: 700;
+  margin: 0 0 16px; padding: 12px 14px; border-radius: 12px; background: #E6F2EC; color: var(--verde-escuro); font-weight: 700;
   display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; justify-content: space-between;
 }
-.aviso-adicionado a { color: var(--verde-escuro); font-weight: 900; }
+.aviso-adicionado a { color: var(--verde-escuro); font-weight: 700; }
 .cores-detalhe { margin: 0; padding: 10px 12px; border-radius: 10px; background: var(--papel); border: 1px solid var(--linha); font-size: .95rem; }
 .botao-texto:hover { background: var(--azul-claro); }
 
@@ -111,12 +125,12 @@ main { max-width: 1080px; margin: 0 auto; padding: 16px; }
 @media (min-width: 760px) { .detalhe { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; } }
 .detalhe-foto { aspect-ratio: 1 / 1; border-radius: var(--raio); overflow: hidden; background: var(--azul-claro); }
 .detalhe-dados { display: flex; flex-direction: column; gap: 14px; }
-.detalhe-dados h1 { margin: 0; font-size: 1.5rem; font-weight: 900; line-height: 1.15; }
-.detalhe-dados .preco { font-size: 1.4rem; }
+.detalhe-dados h1 { margin: 0; font-size: 1.5rem; font-weight: 700; line-height: 1.15; }
+.detalhe-dados .preco { font-size: 1.4rem; padding: 2px 14px; }
 .aviso-consulta { margin: 0; background: var(--ambar-claro); color: var(--ambar-escuro); border-radius: 10px; padding: 10px 12px; font-size: .92rem; }
-.descricao { margin: 0; white-space: pre-line; color: #4A3F50; font-weight: 600; }
+.descricao { margin: 0; white-space: pre-line; color: #4A3F50; }
 fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
-legend { font-weight: 800; margin-bottom: 8px; padding: 0; }
+legend { font-weight: 700; margin-bottom: 8px; padding: 0; }
 .opcoes { display: flex; flex-wrap: wrap; gap: 8px; }
 .opcao { position: relative; }
 .opcao input { position: absolute; opacity: 0; width: 1px; height: 1px; }
@@ -127,14 +141,14 @@ legend { font-weight: 800; margin-bottom: 8px; padding: 0; }
 .opcao input:checked + span { background: var(--azul-claro); border-color: var(--azul); color: var(--azul-escuro); box-shadow: inset 0 0 0 1px var(--azul); }
 .opcao input:checked + span::before { content: '✓'; margin-right: 6px; }
 .opcao input:focus-visible + span { outline: 3px solid var(--azul); outline-offset: 2px; }
-.quantidade-linha { display: flex; align-items: center; gap: 12px; font-weight: 800; }
+.quantidade-linha { display: flex; align-items: center; gap: 12px; font-weight: 700; }
 .contador-qtd { display: flex; align-items: center; background: var(--papel); border: 1px solid var(--linha-forte); border-radius: 12px; }
-.contador-qtd button { width: 44px; height: 44px; border: 0; background: transparent; color: var(--azul-escuro); font-size: 1.4rem; font-weight: 900; cursor: pointer; border-radius: 12px; }
+.contador-qtd button { width: 44px; height: 44px; border: 0; background: transparent; color: var(--azul-escuro); font-size: 1.4rem; font-weight: 700; cursor: pointer; border-radius: 12px; }
 .contador-qtd button:disabled { color: var(--linha-forte); cursor: default; }
-.contador-qtd output { min-width: 28px; text-align: center; font-weight: 900; font-size: 1.05rem; }
+.contador-qtd output { min-width: 28px; text-align: center; font-weight: 700; font-size: 1.05rem; }
 
 /* Carrinho */
-.titulo { margin: 0 0 14px; font-size: 1.5rem; font-weight: 900; }
+.titulo { margin: 0 0 14px; font-size: 1.5rem; font-weight: 700; }
 .lista-itens { list-style: none; margin: 0 0 14px; padding: 0; display: flex; flex-direction: column; gap: 10px; }
 .item {
   background: var(--papel); border: 1px solid var(--linha); border-radius: var(--raio); padding: 10px;
@@ -142,16 +156,16 @@ legend { font-weight: 800; margin-bottom: 8px; padding: 0; }
 }
 .item-foto { width: 64px; height: 64px; border-radius: 10px; overflow: hidden; background: var(--azul-claro); }
 .item-foto img { width: 100%; height: 100%; object-fit: cover; }
-.item-nome { font-weight: 800; line-height: 1.2; }
+.item-nome { font-weight: 700; line-height: 1.2; }
 .item-cor { font-size: .85rem; color: var(--tinta-2); }
 .resumo { background: var(--papel); border: 1px solid var(--linha); border-radius: var(--raio); padding: 14px 16px; margin-bottom: 16px; }
-.resumo-total { display: flex; justify-content: space-between; font-size: 1.15rem; font-weight: 900; }
+.resumo-total { display: flex; justify-content: space-between; font-size: 1.15rem; font-weight: 700; }
 .resumo small { display: block; margin-top: 4px; color: var(--tinta-2); font-size: .85rem; }
 .resumo .nota-consulta { color: var(--ambar-escuro); }
 .campos { display: flex; flex-direction: column; gap: 12px; margin-bottom: 16px; }
-.campo { display: flex; flex-direction: column; gap: 6px; font-weight: 800; }
+.campo { display: flex; flex-direction: column; gap: 6px; font-weight: 700; }
 .campo input, .campo textarea {
-  border: 1px solid var(--linha-forte); border-radius: 12px; padding: 12px; font-size: 16px; font-weight: 600; background: var(--papel); width: 100%;
+  border: 1px solid var(--linha-forte); border-radius: 12px; padding: 12px; font-size: 16px; font-weight: 400; background: var(--papel); width: 100%;
 }
 .campo textarea { min-height: 76px; resize: vertical; }
 .campo input:focus, .campo textarea:focus { outline: 3px solid var(--azul); outline-offset: 1px; }
@@ -169,6 +183,7 @@ legend { font-weight: 800; margin-bottom: 8px; padding: 0; }
 }
 .barra a {
   min-height: 56px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
-  text-decoration: none; color: var(--tinta-2); font-size: .82rem; font-weight: 800; border-radius: 10px;
+  text-decoration: none; color: var(--tinta-2); font-size: .82rem; font-weight: 700; border-radius: 10px;
 }
 .barra a[aria-current="page"] { color: var(--azul-escuro); }
+@media (min-width: 700px) { .marca img { height: 64px; } }

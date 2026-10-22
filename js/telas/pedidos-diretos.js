@@ -18,6 +18,7 @@ import { cliqueForaDoDialogo } from '../ui/dialogo.js';
 import { abrirFormulario } from '../ui/formulario.js';
 import { FORMAS, ROTULO_FORMA } from '../financeiro.js';
 import { abrirRegistroProducao, abrirUsarPecaPronta } from './producao.js';
+import { abrirVendaShopee } from './venda-shopee.js';
 
 // ---------------------------------------------------------------- nomes
 export const STATUS = {
@@ -145,7 +146,8 @@ async function desenhar(area, recarregar, mensagem, abrirId) {
       if (filtro.status === 'ANDAMENTO' && !EDITAVEIS.includes(p.status_pedido)) return false;
       if (filtro.status && filtro.status !== 'ANDAMENTO' && p.status_pedido !== filtro.status) return false;
       if (!termo) return true;
-      return normal(p.cliente_nome).includes(termo) || (/^\d+$/.test(termoNumero) && String(p.numero) === termoNumero);
+      return normal(p.cliente_nome || 'shopee').includes(termo) || normal(p.pedido_shopee).includes(termo)
+        || (/^\d+$/.test(termoNumero) && String(p.numero) === termoNumero);
     });
     contagemEl.textContent = pedidos.length ? `${lista.length} de ${pedidos.length} pedido(s)` : '';
 
@@ -180,6 +182,7 @@ async function desenhar(area, recarregar, mensagem, abrirId) {
 
 function textoSaldo(p) {
   if (p.status_pedido === 'CANCELADO') return '';   // o selo de status já diz "Cancelado"
+  if (p.eh_shopee) return p.status_financeiro === 'RECEBIDO' ? selo(FINANCEIRO, 'RECEBIDO') : '<span class="valor-alerta">Repasse a receber</span>';
   if (p.status_financeiro === 'A_RECEBER') {
     return `<span class="valor-alerta">Falta ${brl(p.saldo)}</span>`;
   }
@@ -191,9 +194,9 @@ function linhaPedido(p) {
   return `<li class="linha linha-pedido">
     <button type="button" class="pedido-botao" data-pedido="${p.id}">
       <span class="linha-texto">
-        <strong>${esc(p.numero_formatado)} · ${esc(p.cliente_nome)}</strong>
+        <strong>${esc(p.numero_formatado)} · ${p.eh_shopee ? `Shopee <span class="texto-secundario">${esc(p.pedido_shopee || '')}</span>` : esc(p.cliente_nome)}</strong>
         <span class="texto-secundario">${dataBR(p.data)} · ${p.quantidade_itens} item(ns)${prazo}</span>
-        <span class="pedido-selos">${selo(STATUS, p.status_pedido)} ${selo(PRAZO, p.selo_prazo)}</span>
+        <span class="pedido-selos">${p.eh_shopee ? '<span class="selo-p selo-shopee">Shopee</span> ' : ''}${selo(STATUS, p.status_pedido)} ${selo(PRAZO, p.selo_prazo)}</span>
       </span>
       <span class="linha-direita pedido-valores">
         <strong class="linha-valor">${brl(p.total)}</strong>
@@ -300,8 +303,9 @@ async function abrirDetalhe(ctx, id) {
 
   const cancelado = p.status_pedido === 'CANCELADO';
   const liquido = num(p.valor_liquido);
-  const podeReceber = !cancelado && num(p.total) > 0 && num(p.saldo) > 0;
-  const podeDevolver = liquido > 0;
+  const shopee = !!p.eh_shopee;   // venda da Shopee (R103): o dinheiro entra pelo repasse
+  const podeReceber = !shopee && !cancelado && num(p.total) > 0 && num(p.saldo) > 0;
+  const podeDevolver = !shopee && liquido > 0;
   const linha = (rotulo, valor, classe = '') => (valor ? `<div class="linha-dado ${classe}"><span>${rotulo}</span><strong>${valor}</strong></div>` : '');
 
   const produzivel = ['AGUARDANDO', 'PRODUZINDO', 'PRONTO'].includes(p.status_pedido);
@@ -378,11 +382,11 @@ async function abrirDetalhe(ctx, id) {
 
     <div class="detalhe-produto">
       <div class="detalhe-dados">
-        ${linha('Cliente', `${esc(p.cliente_nome)}${p.cliente_ativo ? '' : ' (inativo)'}`)}
-        ${linha('Contato', esc(p.cliente_contato || ''))}
+        ${shopee ? `${linha('Canal', 'Shopee')}${linha('Pedido na Shopee', esc(p.pedido_shopee || ''))}`
+          : `${linha('Cliente', `${esc(p.cliente_nome)}${p.cliente_ativo ? '' : ' (inativo)'}`)}${linha('Contato', esc(p.cliente_contato || ''))}`}
         ${linha('Data do pedido', dataBR(p.data))}
         ${linha('Prazo de entrega', p.data_prometida ? dataBR(p.data_prometida) : '')}
-        ${linha('Origem', esc(ROTULO_ORIGEM[p.origem] || p.origem))}
+        ${shopee ? '' : linha('Origem', esc(ROTULO_ORIGEM[p.origem] || p.origem))}
         ${linha('Forma combinada', p.forma_pagamento ? esc(ROTULO_FORMA[p.forma_pagamento]) : '')}
         ${p.observacao ? `<p class="detalhe-titulo">Observação</p><p class="detalhe-descricao">${esc(p.observacao)}</p>` : ''}
       </div>
@@ -390,11 +394,14 @@ async function abrirDetalhe(ctx, id) {
         ${linha('Subtotal', brl(p.subtotal))}
         ${num(p.desconto) ? linha('Desconto', `− ${brl(p.desconto)}`) : ''}
         ${num(p.frete) ? linha('Frete', brl(p.frete)) : ''}
-        ${linha('Total', brl(p.total), 'linha-destaque')}
-        ${linha('Recebido', brl(p.valor_recebido))}
+        ${linha(shopee ? 'Faturamento' : 'Total', brl(p.total), 'linha-destaque')}
+        ${shopee ? `${linha('Taxa da Shopee', `− ${brl(p.taxa_plataforma)}`)}${linha('Repasse estimado', brl(num(p.total) - num(p.taxa_plataforma)), 'linha-destaque')}
+          ${num(p.frete_comprador) ? linha('Frete do comprador', brl(p.frete_comprador)) : ''}
+          <p class="campo-dica">O dinheiro entra no Caixa pelo repasse da Shopee, quando for confirmado. O frete do comprador fica com a Shopee.</p>`
+        : `${linha('Recebido', brl(p.valor_recebido))}
         ${num(p.valor_devolvido) ? linha('Devolvido', `− ${brl(p.valor_devolvido)}`) : ''}
         ${linha('Saldo a receber', brl(p.saldo), 'linha-destaque')}
-        <p class="campo-dica">Recebimentos e devoluções entram no Caixa automaticamente, com a data de cada lançamento.</p>
+        <p class="campo-dica">Recebimentos e devoluções entram no Caixa automaticamente, com a data de cada lançamento.</p>`}
       </div>
     </div>
 
@@ -404,6 +411,7 @@ async function abrirDetalhe(ctx, id) {
     ${custos ? `<p class="detalhe-titulo">Custo e lucro <span class="texto-secundario">(estimativa, só você vê)</span></p>
     <div class="detalhe-dados custos-pedido">
       ${linha('Produtos − desconto', brl(custos.receita))}
+      ${num(custos.taxa_plataforma) ? linha('Taxa da Shopee', `− ${brl(custos.taxa_plataforma)}`) : ''}
       ${linha('Custo de produção', `− ${brl(num(custos.custo_producao) + num(custos.custo_pecas_prontas))}`)}
       ${num(custos.custo_embalagem) ? linha('Embalagem', `− ${brl(custos.custo_embalagem)}`) : ''}
       ${linha('Comissão do Joca', `− ${brl(custos.comissao_joca)}`)}
@@ -417,12 +425,12 @@ async function abrirDetalhe(ctx, id) {
     <div class="form-acoes acoes-pedido">
       ${podeReceber ? '<button type="button" class="botao botao-primario" data-receber><i class="ti ti-cash" aria-hidden="true"></i> Registrar recebimento</button>' : ''}
       ${podeDevolver ? '<button type="button" class="botao" data-devolver><i class="ti ti-arrow-back-up" aria-hidden="true"></i> Registrar devolução</button>' : ''}
-      ${EDITAVEIS.includes(p.status_pedido) ? '<button type="button" class="botao" data-editar><i class="ti ti-pencil" aria-hidden="true"></i> Editar pedido</button>' : ''}
+      ${EDITAVEIS.includes(p.status_pedido) ? `<button type="button" class="botao" data-editar><i class="ti ti-pencil" aria-hidden="true"></i> ${shopee ? 'Editar venda' : 'Editar pedido'}</button>` : ''}
       ${cancelado ? '' : '<button type="button" class="botao botao-perigo" data-cancelar>Cancelar pedido</button>'}
     </div>
 
-    <p class="detalhe-titulo">Pagamentos e devoluções</p>
-    <ul class="lista">${pagamentosHtml}</ul>
+    ${shopee ? '' : `<p class="detalhe-titulo">Pagamentos e devoluções</p>
+    <ul class="lista">${pagamentosHtml}</ul>`}
 
     <p class="detalhe-titulo">Histórico de status</p>
     <ul class="historico">${historicoHtml}</ul>
@@ -451,8 +459,13 @@ async function abrirDetalhe(ctx, id) {
     }
   }));
 
-  dialog.querySelector('[data-editar]')?.addEventListener('click', () => {
+  dialog.querySelector('[data-editar]')?.addEventListener('click', async () => {
     fechar();
+    if (shopee) {
+      try { await abrirVendaShopee(sb, { venda: p, itensVenda: itens, aoConcluir: (msg, vid) => recarregar(msg, vid) }); }
+      catch (err) { window.alert(err.message); }
+      return;
+    }
     abrirFormularioPedido(ctx, { pedido: p, itens });
   });
 
