@@ -256,7 +256,9 @@ async function desenhar(area, recarregar, mensagem) {
   if (marcas) produtos.forEach(p => Object.assign(p, { no_catalogo: false, personalizado: false }, marcas[p.id] || {}));
   const ficha = await carregarFichas(sb, produtos);
   const variacoes = await carregarVariacoes(sb, produtos);
-  const contexto = { sb, produtos, filamentos, fotos, recarregar, catalogo: !!marcas, ficha, galeria: !!extras, interna: !!internas, variacoes };
+  // Combinações no catálogo público (sql/23)? Antes de instalar, a função não existe.
+  const catVar = variacoes && marcas ? !(await sb.rpc('catalogo_variacoes')).error : false;
+  const contexto = { sb, produtos, filamentos, fotos, recarregar, catalogo: !!marcas, ficha, galeria: !!extras, interna: !!internas, variacoes, catVar };
 
   area.innerHTML = `
     <section class="cartao filtros filtros-produtos">
@@ -394,9 +396,16 @@ function selosCatalogo(p) {
 }
 
 // Como o produto aparece no catálogo público (R85–R86).
-function situacaoCatalogo(p) {
+function situacaoCatalogo(p, catVar) {
   if (!p.no_catalogo) return 'Não aparece';
   if (!p.ativo) return 'Marcado, mas não aparece porque está inativo';
+  // Combinações no catálogo (sql/23, R117): o cliente escolhe as opções.
+  if (catVar && p.variacoes?.length) {
+    const v = precoVariacoes(p);
+    if (!v) return 'Aparece como “Indisponível”: nenhuma combinação ligada';
+    if (p.personalizado || v.minimo == null) return 'Aparece como “Sob consulta”, com a escolha das opções';
+    return `Aparece ${v.texto}, com a escolha das opções`;
+  }
   return p.personalizado || p.sem_preco ? 'Aparece como “Sob consulta”' : `Aparece por ${brl(p.preco_venda)}`;
 }
 
@@ -441,7 +450,7 @@ function abrirDetalhe(ctx, p) {
         ${linha('Tempo', tempo)}
         ${linha('Peso', p.peso_g != null ? `${paraCampo(p.peso_g, 0, 2)} g` : '')}
         ${linha('Dimensões (A × L × P)', dims)}
-        ${catalogo ? linha('Catálogo público', esc(situacaoCatalogo(p))) : ''}
+        ${catalogo ? linha('Catálogo público', esc(situacaoCatalogo(p, ctx.catVar))) : ''}
         ${p.cores.length ? `<p class="detalhe-titulo">Cores</p>${chipsCores(p.cores)}` : ''}
         ${ficha ? htmlFicha(p) : ''}
         ${htmlCombinacoesDetalhe(p, !!ficha)}

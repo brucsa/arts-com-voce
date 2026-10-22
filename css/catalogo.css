@@ -102,6 +102,8 @@ main { max-width: 1080px; margin: 0 auto; padding: 16px; }
   background: var(--ambar); color: var(--tinta); font-size: 1.05rem; font-weight: 700;
 }
 .preco-consulta { background: var(--ambar-claro); color: var(--ambar-escuro); }
+.preco { white-space: nowrap; }
+.preco .a-partir { font-size: .68em; font-weight: 600; }
 .cores-linha { font-size: .82rem; color: var(--tinta-2); }
 .cartao-corpo .espaco { flex: 1; }
 .botao {
@@ -125,6 +127,21 @@ main { max-width: 1080px; margin: 0 auto; padding: 16px; }
 }
 .aviso-adicionado a { color: var(--verde-escuro); font-weight: 700; }
 .tempo-impressao { margin: 0; font-size: .95rem; }
+/* Escolha das opções (R117) */
+.escolhas { display: grid; gap: 12px; }
+.escolha { border: 0; margin: 0; padding: 0; min-width: 0; }
+.escolha legend { padding: 0; margin-bottom: 6px; font-weight: 700; }
+.escolha legend strong { color: var(--azul); }
+.opcao-valores { display: flex; flex-wrap: wrap; gap: 8px; }
+.opcao-valor {
+  min-height: 44px; min-width: 44px; padding: 8px 14px; border-radius: 22px; cursor: pointer;
+  background: var(--papel); border: 1.5px solid var(--linha-forte); color: var(--tinta); font-weight: 600;
+}
+.opcao-valor:hover { border-color: var(--azul); }
+.opcao-valor[aria-pressed="true"] { background: var(--azul); border-color: var(--azul); color: #fff; }
+.opcao-valor.indisponivel { opacity: .5; border-style: dashed; }
+.item-combinacao { font-size: .9rem; font-weight: 700; color: var(--azul); }
+.campo-erro[hidden] { display: none; }
 .cores-detalhe { margin: 0; padding: 10px 12px; border-radius: 10px; background: var(--papel); border: 1px solid var(--linha); font-size: .95rem; }
 .botao-texto:hover { background: var(--azul-claro); }
 

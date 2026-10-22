@@ -2,6 +2,8 @@
 // Página sem login: lê só a função catalogo_publico() e as fotos dos produtos
 // marcados (links temporários). Não grava nada no sistema: o pedido vai
 // pelo WhatsApp (R87). O carrinho fica só no aparelho do cliente.
+// Combinações (R117, sql/23): o cliente escolhe as opções e vê o preço da
+// combinação; ela vai no carrinho e na mensagem. Antes do sql/23, sem escolha.
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
 import { brl, esc } from './format.js';
 
@@ -17,27 +19,35 @@ let cliente = null;         // cliente do Supabase (visitante), guardado para bu
 // Cores: por enquanto não aparecem nem são escolhidas; ficam "a consultar" (R86).
 let carregado = false;
 let busca = '';
-let carrinho = lerCarrinho(); // [{ id, qtd }]
+let carrinho = lerCarrinho(); // [{ id, v?, qtd }] (v = combinação)
 let aviso = '';              // "… foi adicionado ao carrinho", mostrado uma vez na vitrine
 let dados = { nome: '', tel: '', obs: '' };
-let escolha = { id: null, qtd: 1 };
+let escolha = { id: null, qtd: 1, sel: [] };
 
 // ------------------------------------------------------------ carrinho no aparelho
 function lerCarrinho() {
   try {
     const lista = JSON.parse(localStorage.getItem(CHAVE_CARRINHO) || '[]');
-    return Array.isArray(lista) ? lista.filter(i => i && typeof i.id === 'string' && Number.isInteger(i.qtd) && i.qtd > 0) : [];
+    return Array.isArray(lista) ? lista.filter(i => i && typeof i.id === 'string' && Number.isInteger(i.qtd) && i.qtd > 0
+      && (i.v == null || typeof i.v === 'string')) : [];
   } catch { return []; }
 }
 function guardarCarrinho() {
   try { localStorage.setItem(CHAVE_CARRINHO, JSON.stringify(carrinho)); } catch { /* sem armazenamento: fica só na memória */ }
   atualizarContador();
 }
-// Itens de produtos que saíram do catálogo são retirados; o mesmo produto fica numa linha só.
+// Itens de produtos (ou combinações) que saíram do catálogo são retirados;
+// o mesmo produto, na mesma combinação, fica numa linha só.
 function limparCarrinho() {
   const juntos = new Map();
-  carrinho.filter(i => achar(i.id)).forEach(i => juntos.set(i.id, Math.min(QTD_MAX, (juntos.get(i.id) || 0) + i.qtd)));
-  carrinho = [...juntos].map(([id, qtd]) => ({ id, qtd }));
+  carrinho.filter(i => {
+    const p = achar(i.id);
+    return p && (p.combs ? !!combo(p, i.v) : !i.v);
+  }).forEach(i => {
+    const k = `${i.id}|${i.v || ''}`;
+    juntos.set(k, { id: i.id, v: i.v || undefined, qtd: Math.min(QTD_MAX, (juntos.get(k)?.qtd || 0) + i.qtd) });
+  });
+  carrinho = [...juntos.values()];
   guardarCarrinho();
 }
 const qtdTotal = () => carrinho.reduce((s, i) => s + i.qtd, 0);
@@ -50,8 +60,28 @@ function atualizarContador() {
 
 // ------------------------------------------------------------ dados
 const achar = id => produtos.find(p => p.id === id);
+const combo = (p, v) => (v && p.combs ? p.combs.find(c => c.id === v) : null);
 const centavos = v => Math.round(Number(v) * 100);
-const precoTexto = p => (p.sob_consulta ? 'Sob consulta' : brl(p.preco));
+/** Preço de um item do carrinho: o da combinação, se tiver; null = sob consulta. */
+function precoItem(i) {
+  const p = achar(i.id);
+  if (p.combs) return combo(p, i.v)?.preco ?? null;
+  return p.sob_consulta ? null : p.preco;
+}
+const nomeItem = i => { const c = combo(achar(i.id), i.v); return c ? `${achar(i.id).nome} · ${c.descricao}` : achar(i.id).nome; };
+/** Preço no cartão e no topo da página: com combinações, "a partir de" o menor (R114). */
+function faixa(p) {
+  if (!p.combs) return { texto: p.sob_consulta ? 'Sob consulta' : brl(p.preco), consulta: p.sob_consulta };
+  if (!p.combs.length) return { texto: 'Indisponível no momento', consulta: true, indisponivel: true };
+  const precos = p.combs.filter(c => c.preco != null).map(c => Number(c.preco));
+  if (!precos.length) return { texto: 'Sob consulta', consulta: true };
+  const min = Math.min(...precos);
+  const iguais = precos.length === p.combs.length && precos.every(x => x === min);
+  return { texto: iguais ? brl(min) : `A partir de ${brl(min)}`, consulta: false,
+           html: iguais ? brl(min) : `<small class="a-partir">A partir de</small> ${brl(min)}` };
+}
+/** Preço como HTML: o "A partir de" vai menor, na mesma linha do valor. */
+const precoHtml = p => { const fx = faixa(p); return fx.html || esc(fx.texto); };
 // Telefone com DDD: 10 ou 11 dígitos (aceita +55 na frente). Devolve só os dígitos, ou null.
 function telDigitos(t) {
   let d = String(t || '').replace(/\D/g, '');
@@ -71,6 +101,12 @@ async function carregar() {
   const { data, error } = await sb.rpc('catalogo_publico');
   if (error) throw error;
   produtos = (data || []).map(({ cores, ...p }) => ({ ...p, foto: null }));
+  // Combinações (sql/23). Antes de instalar, a função não existe: sem escolha.
+  const vr = await sb.rpc('catalogo_variacoes');
+  if (!vr.error) (vr.data || []).forEach(x => {
+    const p = achar(x.produto_id);
+    if (p) Object.assign(p, { opcoes: x.opcoes || [], combs: x.combinacoes || [] });
+  });
   const caminhos = produtos.map(p => p.foto_path).filter(Boolean);
   if (caminhos.length) {
     const r = await sb.storage.from('produtos').createSignedUrls(caminhos, 3600);
@@ -148,8 +184,8 @@ function tempoTexto(min) {
 function linhaTotal() {
   let total = 0, consulta = false;
   carrinho.forEach(i => {
-    const p = achar(i.id);
-    if (p.sob_consulta) consulta = true; else total += centavos(p.preco) * i.qtd;
+    const preco = precoItem(i);
+    if (preco == null) consulta = true; else total += centavos(preco) * i.qtd;
   });
   const soConsulta = consulta && total === 0;
   return { totalTexto: soConsulta ? 'A combinar' : brl(total / 100), consulta, soConsulta };
@@ -159,8 +195,8 @@ function mensagem() {
   const { totalTexto, consulta, soConsulta } = linhaTotal();
   const linhas = ['*Pedido pelo Catálogo Arts com Você*', `Nome: ${dados.nome.trim()}`, `Telefone: ${telTexto(telDigitos(dados.tel))}`, '', '*Itens do pedido:*'];
   carrinho.forEach(i => {
-    const p = achar(i.id);
-    linhas.push(`• ${p.nome} x${i.qtd} — ${p.sob_consulta ? 'sob consulta' : brl(centavos(p.preco) * i.qtd / 100)}`);
+    const preco = precoItem(i);
+    linhas.push(`• ${nomeItem(i)} x${i.qtd} — ${preco == null ? 'sob consulta' : brl(centavos(preco) * i.qtd / 100)}`);
   });
   linhas.push('Cores: a consultar');
   linhas.push('', `*Total: ${totalTexto}*${consulta && !soConsulta ? ' + itens sob consulta' : ''}`);
@@ -195,7 +231,7 @@ function telaVitrine() {
         <div class="cartao-corpo">
           <h2 class="cartao-nome"><a href="#/produto/${p.id}">${esc(p.nome)}</a></h2>
           <span class="espaco"></span>
-          <span class="preco ${p.sob_consulta ? 'preco-consulta' : ''}">${precoTexto(p)}</span>
+          <span class="preco ${faixa(p).consulta ? 'preco-consulta' : ''}">${precoHtml(p)}</span>
           <a class="botao" href="#/produto/${p.id}" aria-label="Adicionar ${esc(p.nome)}">+ Adicionar</a>
         </div>
       </article>`).join('');
@@ -206,10 +242,31 @@ function telaVitrine() {
   desenhar();
 }
 
+/** Escolha das opções (R117): um grupo de botões por opção. */
+function htmlOpcoes(p) {
+  return p.opcoes.map((o, k) => `
+    <fieldset class="escolha" data-opcao="${k}">
+      <legend>${esc(o.nome)}${escolha.sel[k] ? `: <strong>${esc(escolha.sel[k])}</strong>` : ''}</legend>
+      <div class="opcao-valores">${o.valores.map(v => `
+        <button type="button" class="opcao-valor" data-valor="${esc(v)}" aria-pressed="${escolha.sel[k] === v}">${esc(v)}</button>`).join('')}
+      </div>
+    </fieldset>`).join('');
+}
+/** Combinação ligada com exatamente os valores escolhidos, ou null. */
+const comboEscolhido = p => (p.combs && escolha.sel.length === p.opcoes.length && escolha.sel.every(Boolean)
+  ? p.combs.find(c => c.valores.every((v, k) => v === escolha.sel[k])) || null : null);
+/** Um valor só fica disponível se existir combinação ligada com ele e com os outros já escolhidos. */
+const disponivel = (p, k, valor) => p.combs.some(c => c.valores[k] === valor
+  && c.valores.every((v, n) => n === k || !escolha.sel[n] || escolha.sel[n] === v));
+
 function telaProduto(id) {
   const p = achar(id);
   if (!p) { location.replace('#/'); return; }
-  if (escolha.id !== id) escolha = { id, qtd: 1 };
+  if (escolha.id !== id) escolha = { id, qtd: 1, sel: [] };
+  const comOpcoes = !!p.combs?.length;
+  // Opção com um valor só já vem escolhida.
+  if (comOpcoes) p.opcoes.forEach((o, k) => { if (o.valores.length === 1) escolha.sel[k] = o.valores[0]; });
+  const fx = faixa(p);
   conteudo.innerHTML = `
     <a class="botao botao-texto voltar" href="#/">‹ Voltar para o catálogo</a>
     <div class="detalhe">
@@ -217,12 +274,15 @@ function telaProduto(id) {
       <form class="detalhe-dados" data-form novalidate>
         <div>
           <h1>${esc(p.nome)}</h1>
-          <span class="preco ${p.sob_consulta ? 'preco-consulta' : ''}">${precoTexto(p)}</span>
+          <span class="preco" data-preco aria-live="polite"></span>
         </div>
-        ${p.sob_consulta ? '<p class="aviso-consulta">O valor desta peça é combinado na conversa pelo WhatsApp.</p>' : ''}
+        <p class="aviso-consulta" data-aviso-consulta hidden>O valor desta peça é combinado na conversa pelo WhatsApp.</p>
         ${p.descricao ? `<p class="descricao">${esc(p.descricao)}</p>` : ''}
         ${p.tempo_impressao_min ? `<p class="tempo-impressao"><strong>Tempo de impressão:</strong> ${tempoTexto(p.tempo_impressao_min)}</p>` : ''}
+        ${comOpcoes ? `<div class="escolhas" data-opcoes></div>
+          <p class="campo-erro" data-erro-opcoes role="alert" hidden></p>` : ''}
         <p class="cores-detalhe"><strong>Cores:</strong> a consultar. Combinamos a cor com você pelo WhatsApp.</p>
+        ${fx.indisponivel ? '<p class="aviso-consulta">Este produto está indisponível no momento. Fale com a gente pelo WhatsApp.</p>' : `
         <div class="quantidade-linha">
           <span id="rot-qtd">Quantidade</span>
           <div class="contador-qtd" role="group" aria-labelledby="rot-qtd">
@@ -234,7 +294,7 @@ function telaProduto(id) {
         <div class="pilha">
           <button type="submit" class="botao botao-cheio" value="comprar">Enviar pedido</button>
           <button type="submit" class="botao botao-borda" value="mais">Adicionar mais itens</button>
-        </div>
+        </div>`}
       </form>
     </div>`;
   const fotosEl = conteudo.querySelector('[data-fotos]');
@@ -244,6 +304,45 @@ function telaProduto(id) {
     if (urls.length > 1 && fotosEl.isConnected) { fotosEl.innerHTML = carrossel(p, urls); ligarCarrossel(fotosEl); }
   });
   const form = conteudo.querySelector('[data-form]');
+  const precoEl = form.querySelector('[data-preco]');
+  const avisoConsulta = form.querySelector('[data-aviso-consulta]');
+  const opcoesEl = form.querySelector('[data-opcoes]');
+  const erroOpcoes = form.querySelector('[data-erro-opcoes]');
+  // Preço: o da combinação escolhida; antes de escolher, a faixa do produto.
+  function mostrarPreco() {
+    const c = comboEscolhido(p);
+    const consulta = c ? c.preco == null : fx.consulta;
+    precoEl.innerHTML = c ? (c.preco == null ? 'Sob consulta' : brl(c.preco)) : precoHtml(p);
+    precoEl.classList.toggle('preco-consulta', consulta);
+    avisoConsulta.hidden = !(c ? c.preco == null : (fx.consulta && !fx.indisponivel));
+  }
+  function desenharOpcoes() {
+    if (!opcoesEl) return;
+    opcoesEl.innerHTML = htmlOpcoes(p);
+    opcoesEl.querySelectorAll('[data-opcao]').forEach(fs => {
+      const k = Number(fs.dataset.opcao);
+      // Valor que não combina com o resto da escolha fica apagado, mas pode ser
+      // tocado: ele entra e o que não combina com ele sai da escolha.
+      fs.querySelectorAll('[data-valor]').forEach(bt => {
+        const fora = !disponivel(p, k, bt.dataset.valor);
+        bt.classList.toggle('indisponivel', fora);
+        bt.setAttribute('aria-label', fora ? `${bt.dataset.valor} (não combina com a escolha atual)` : bt.dataset.valor);
+      });
+    });
+  }
+  opcoesEl?.addEventListener('click', e => {
+    const b = e.target.closest('[data-valor]');
+    if (!b) return;
+    const k = Number(b.closest('[data-opcao]').dataset.opcao);
+    escolha.sel[k] = escolha.sel[k] === b.dataset.valor && p.opcoes[k].valores.length > 1 ? undefined : b.dataset.valor;
+    // Valor escolhido antes que não combina mais com este sai da escolha.
+    escolha.sel.forEach((v, n) => { if (n !== k && v && !disponivel(p, n, v)) escolha.sel[n] = undefined; });
+    erroOpcoes.hidden = true;
+    desenharOpcoes(); mostrarPreco();
+    opcoesEl.querySelector(`[data-opcao="${k}"] [data-valor="${CSS.escape(b.dataset.valor)}"]`)?.focus();
+  });
+  desenharOpcoes(); mostrarPreco();
+  if (fx.indisponivel) return;
   const saida = form.querySelector('[data-qtd]');
   const menos = form.querySelector('[data-menos]');
   const mais = form.querySelector('[data-mais]');
@@ -252,15 +351,24 @@ function telaProduto(id) {
   mais.addEventListener('click', () => { escolha.qtd = Math.min(QTD_MAX, escolha.qtd + 1); mostrarQtd(); });
   form.addEventListener('submit', e => {
     e.preventDefault();
-    const igual = carrinho.find(i => i.id === p.id);
+    const c = comboEscolhido(p);
+    if (comOpcoes && !c) {
+      const falta = p.opcoes.filter((o, k) => !escolha.sel[k]).map(o => o.nome);
+      erroOpcoes.textContent = falta.length ? `Escolha ${falta.join(' e ')}.` : 'Essa combinação não está disponível. Escolha outra.';
+      erroOpcoes.hidden = false;
+      opcoesEl.querySelector('[data-valor]')?.focus();
+      return;
+    }
+    const v = c?.id;
+    const igual = carrinho.find(i => i.id === p.id && (i.v || undefined) === v);
     if (igual) igual.qtd = Math.min(QTD_MAX, igual.qtd + escolha.qtd);
-    else carrinho.push({ id: p.id, qtd: escolha.qtd });
+    else carrinho.push(v ? { id: p.id, v, qtd: escolha.qtd } : { id: p.id, qtd: escolha.qtd });
     const qtd = escolha.qtd;
-    escolha = { id: null, qtd: 1 };
+    escolha = { id: null, qtd: 1, sel: [] };
     guardarCarrinho();
     // "Enviar pedido" vai para o carrinho (nome, telefone e envio); "Adicionar mais itens" volta para a vitrine.
     if (e.submitter?.value === 'mais') {
-      aviso = `${qtd > 1 ? `${qtd}× ` : ''}${p.nome} foi adicionado ao carrinho.`;
+      aviso = `${qtd > 1 ? `${qtd}× ` : ''}${p.nome}${c ? ` (${c.descricao})` : ''} foi adicionado ao carrinho.`;
       location.hash = '#/';
     } else location.hash = '#/carrinho';
   });
@@ -280,17 +388,21 @@ function telaCarrinho() {
     <h1 class="titulo">Seu carrinho</h1>
     <ul class="lista-itens">${carrinho.map((i, n) => {
       const p = achar(i.id);
+      const c = combo(p, i.v);
+      const preco = precoItem(i);
+      const nome = nomeItem(i);
       return `<li class="item">
         <div class="item-foto">${foto(p, false)}</div>
         <div>
           <div class="item-nome">${esc(p.nome)}</div>
+          ${c ? `<div class="item-combinacao">${esc(c.descricao)}</div>` : ''}
           <div class="item-cor">Cores a consultar</div>
-          <div class="preco ${p.sob_consulta ? 'preco-consulta' : ''}">${p.sob_consulta ? 'Sob consulta' : brl(centavos(p.preco) * i.qtd / 100)}</div>
+          <div class="preco ${preco == null ? 'preco-consulta' : ''}">${preco == null ? 'Sob consulta' : brl(centavos(preco) * i.qtd / 100)}</div>
         </div>
-        <div class="contador-qtd" role="group" aria-label="Quantidade de ${esc(p.nome)}">
-          <button type="button" data-menos="${n}" aria-label="${i.qtd === 1 ? 'Tirar' : 'Diminuir'} ${esc(p.nome)}">${i.qtd === 1 ? '×' : '−'}</button>
+        <div class="contador-qtd" role="group" aria-label="Quantidade de ${esc(nome)}">
+          <button type="button" data-menos="${n}" aria-label="${i.qtd === 1 ? 'Tirar' : 'Diminuir'} ${esc(nome)}">${i.qtd === 1 ? '×' : '−'}</button>
           <output>${i.qtd}</output>
-          <button type="button" data-mais="${n}" aria-label="Aumentar ${esc(p.nome)}" ${i.qtd >= QTD_MAX ? 'disabled' : ''}>+</button>
+          <button type="button" data-mais="${n}" aria-label="Aumentar ${esc(nome)}" ${i.qtd >= QTD_MAX ? 'disabled' : ''}>+</button>
         </div>
       </li>`;
     }).join('')}</ul>
