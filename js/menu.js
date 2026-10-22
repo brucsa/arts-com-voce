@@ -69,12 +69,12 @@ export const TELAS = Object.fromEntries(GRUPOS.flatMap(g => g.telas).map(t => [t
 
 // ---- Arts com Você Essencial (E1): navegação com três áreas ----------------
 // Tela aberta ao entrar e quando o endereço não existe.
-export const ROTA_INICIAL = 'pedidos';
+export const ROTA_INICIAL = 'inicio';   // Dashboard (R122, versão 1.14)
 // Menu principal (no celular, aparece dentro de "Mais"; a barra inferior não muda).
-export const MENU_PRINCIPAL = ['pedidos', 'produtos', 'caixa', 'joca'];
+export const MENU_PRINCIPAL = ['inicio', 'pedidos', 'produtos', 'caixa', 'joca'];
 // Grupo "Mais": telas prontas que ficam fora do menu principal.
 export const MENU_MAIS = ['gastos', 'estoque', 'producao', 'configuracoes'];
-// As demais telas (Início, Vendas, Canais, Relatórios,
+// As demais telas (Vendas, Canais, Relatórios,
 // Fechamento e Pedidos da Shopee como tela própria) ficam fora do menu, mas
 // continuam abrindo pelo endereço. A Shopee aparece na aba Shopee de Pedidos.
 

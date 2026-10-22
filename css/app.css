@@ -694,3 +694,37 @@ button.atalho { background: var(--papel); font: inherit; font-weight: 700; text-
 .pedidos-topo [data-importar-shopee] { white-space: nowrap; }
 .selo-shopee { background: #FDE8E1; color: #B43D17; }
 @media (max-width: 599px) { .pedidos-topo [data-importar-shopee] { width: 100%; justify-content: center; } }
+
+/* ---------------------------------------------------------- Início · Dashboard (R122–R128) */
+.inicio-topo { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+.inicio-topo h2 { font-size: 1.5rem; margin: 0; }
+.filtro-periodo { display: grid; gap: 8px; justify-items: end; }
+.abas-periodo { margin: 0; padding: 4px; overflow: visible; }
+.abas-periodo .aba[aria-pressed="true"] { background: var(--azul-claro); color: var(--azul-escuro); }
+.periodo-datas { display: flex; gap: 8px; }
+.periodo-datas[hidden] { display: none; }
+[data-painel] { display: grid; gap: 16px; }
+[data-painel][aria-busy="true"] { opacity: .6; transition: opacity .2s; }
+[data-painel] .cartao { margin: 0; display: grid; gap: 12px; }
+[data-painel] h3 { margin: 0; }
+.lista-alertas { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.alerta {
+  display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 8px 12px; border-radius: var(--raio-p);
+  background: var(--ambar-claro); color: var(--ambar-escuro); text-decoration: none; font-weight: 700;
+}
+.alerta span { flex: 1; }
+.alerta:hover { filter: brightness(.97); }
+.alerta-forte { background: var(--erro-claro); color: var(--erro); }
+.alertas-vazio p { margin: 0; color: var(--menta-escuro); font-weight: 700; display: flex; align-items: center; gap: 8px; }
+.cascata { list-style: none; margin: 0; padding: 0; }
+.cascata li { display: flex; justify-content: space-between; gap: 12px; padding: 7px 0; border-bottom: 1px solid var(--linha); }
+.cascata li span:first-child { color: var(--tinta-2); }
+.cascata li span:last-child { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.cascata-total { border-bottom: 0 !important; font-weight: 700; font-size: 1.05rem; }
+.cascata-total span:first-child { color: var(--tinta) !important; }
+@media (max-width: 599px) {
+  .filtro-periodo { justify-items: stretch; width: 100%; }
+  .abas-periodo { width: 100%; }
+  .abas-periodo .aba { flex: 1; justify-content: center; padding: 8px 4px; min-width: 0; }
+  .periodo-datas .campo { flex: 1; }
+}

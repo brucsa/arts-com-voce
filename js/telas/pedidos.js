@@ -19,6 +19,8 @@ let abaAtual = 'diretos';
 // Depois de salvar um pedido pelo atalho ＋: mostra a aba Diretos com o pedido aberto.
 let pendente = null;
 let pendenteShopee = null;
+// Aba pedida de fora (ex.: um alerta do Início leva para a aba Shopee).
+let abaPedida = null;
 
 /** Faz a próxima abertura da tela Pedidos mostrar a aba Diretos (com mensagem e pedido aberto). */
 export function mostrarPedidoDireto(mensagem, id) {
@@ -26,9 +28,15 @@ export function mostrarPedidoDireto(mensagem, id) {
   pendente = { mensagem, abrir: id };
 }
 
+/** Faz a próxima abertura da tela Pedidos mostrar a aba Shopee (alertas do Início, R128). */
+export function mostrarAbaShopee() {
+  abaPedida = 'shopee';
+}
+
 export function telaPedidos(el) {
   const redesenho = !!el.querySelector('#aba-diretos');   // já estava na tela de Pedidos
-  if (!redesenho) abaAtual = 'diretos';
+  if (!redesenho) abaAtual = abaPedida || 'diretos';
+  abaPedida = null;
   el.innerHTML = `
     <div class="pedidos-topo">
       <div class="abas" role="tablist" aria-label="Tipo de pedido">
