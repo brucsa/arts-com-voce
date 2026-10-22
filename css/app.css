@@ -488,6 +488,23 @@ button.atalho { background: var(--papel); font: inherit; font-weight: 700; text-
 .foto-escolha { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
 .previa-foto { width: 112px; height: 112px; object-fit: cover; border-radius: var(--raio-p); border: 1px solid var(--linha); display: grid; place-items: center; }
 .foto-botoes { display: grid; gap: 6px; justify-items: start; }
+.galeria-form { display: flex; flex-wrap: wrap; gap: 12px; }
+.galeria-item { position: relative; display: grid; gap: 4px; justify-items: center; }
+.galeria-item .selo-capa { position: absolute; top: 6px; left: 6px; background: var(--ambar); color: var(--tinta); }
+.galeria-botoes { display: flex; gap: 2px; }
+.galeria-botoes .botao-icone { width: 36px; height: 36px; }
+.galeria-botoes .botao-icone:disabled { opacity: .35; cursor: default; }
+.galeria-adicionar {
+  width: 112px; height: 112px; border: 2px dashed var(--linha-forte); border-radius: var(--raio-p); cursor: pointer;
+  display: grid; place-content: center; justify-items: center; gap: 4px; text-align: center; padding: 6px;
+  color: var(--azul-escuro); font-weight: 700; font-size: .85rem; background: var(--papel);
+}
+.galeria-adicionar i { font-size: 26px; }
+.galeria-adicionar:hover { background: var(--azul-claro); }
+.galeria-adicionar:focus-within { outline: 3px solid var(--ambar); outline-offset: 2px; }
+.detalhe-fotos { display: grid; gap: 8px; align-content: start; }
+.miniaturas { display: flex; gap: 8px; flex-wrap: wrap; }
+.miniatura { width: 64px; height: 64px; object-fit: cover; border-radius: 6px; border: 1px solid var(--linha); background: var(--creme); }
 .campo textarea {
   min-height: 80px; padding: 10px 12px; resize: vertical;
   border: 1px solid var(--linha-forte); border-radius: var(--raio-p); background: var(--papel); font-weight: 400;

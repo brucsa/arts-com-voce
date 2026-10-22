@@ -4,6 +4,9 @@
 // Catálogo público (R85–R88): as marcações são gravadas por definir_produto_catalogo.
 // Ficha de consumo (R93): partes e outros materiais, gravados por salvar_ficha_produto.
 // Fotos: pasta privada "produtos" do Storage, vistas por links temporários.
+// Até 5 fotos por produto (sql/20, R73 v1.12): a primeira é a capa
+// (produtos.foto_path) e as outras ficam em produto_fotos. Antes do sql/20,
+// uma foto só, como sempre.
 
 import { supabase, configurado } from '../supabase.js';
 import { ok } from '../db.js';
@@ -187,19 +190,23 @@ export async function otimizarFoto(arquivo) {
 }
 
 async function linksDasFotos(sb, produtos) {
-  const caminhos = produtos.map(p => p.foto_path).filter(Boolean);
+  const caminhos = produtos.flatMap(p => [p.foto_path, ...(p.fotos_extra || [])]).filter(Boolean);
   if (!caminhos.length) return {};
   const { data, error } = await sb.storage.from(PASTA).createSignedUrls(caminhos, 3600);
   if (error) return {};
   return Object.fromEntries((data || []).filter(d => d.signedUrl).map(d => [d.path, d.signedUrl]));
 }
 
-// Apaga uma foto que deixou de ser usada. Se falhar, ela fica como "foto sem
-// produto" na verificação e pode ser apagada pelo painel do Storage.
+// Apaga uma ou mais fotos que deixaram de ser usadas. Se falhar, elas ficam
+// como "foto sem produto" na verificação e podem ser apagadas pelo painel do Storage.
 async function apagarFoto(sb, caminho) {
-  if (!caminho) return;
-  try { await sb.storage.from(PASTA).remove([caminho]); } catch { /* fica para limpeza manual */ }
+  const lista = (Array.isArray(caminho) ? caminho : [caminho]).filter(Boolean);
+  if (!lista.length) return;
+  try { await sb.storage.from(PASTA).remove(lista); } catch { /* fica para limpeza manual */ }
 }
+
+const MAX_FOTOS = 5;
+const todasAsFotos = p => [p?.foto_path, ...(p?.fotos_extra || [])].filter(Boolean);
 
 // ---------------------------------------------------------------- tela
 
@@ -230,6 +237,10 @@ async function desenhar(area, recarregar, mensagem) {
     sb.from('materiais').select('id, tipo, variacao, ativo').eq('categoria', 'FILAMENTO')
       .order('tipo').order('variacao').then(ok),
   ]);
+  // Fotos a mais (sql/20). Antes de instalar, a tabela não existe: uma foto só.
+  const extras = await sb.from('produto_fotos').select('produto_id, ordem, foto_path').order('ordem')
+    .then(({ data, error }) => (error ? null : data || []));
+  produtos.forEach(p => { p.fotos_extra = (extras || []).filter(f => f.produto_id === p.id).map(f => f.foto_path); });
   const fotos = await linksDasFotos(sb, produtos);
   // Marcações do catálogo público (R86). Antes do sql/11 as colunas não
   // existem: a tela continua funcionando, só sem as marcações.
@@ -237,7 +248,7 @@ async function desenhar(area, recarregar, mensagem) {
     .then(({ data, error }) => (error ? null : Object.fromEntries((data || []).map(m => [m.id, m]))));
   if (marcas) produtos.forEach(p => Object.assign(p, { no_catalogo: false, personalizado: false }, marcas[p.id] || {}));
   const ficha = await carregarFichas(sb, produtos);
-  const contexto = { sb, produtos, filamentos, fotos, recarregar, catalogo: !!marcas, ficha };
+  const contexto = { sb, produtos, filamentos, fotos, recarregar, catalogo: !!marcas, ficha, galeria: !!extras };
 
   area.innerHTML = `
     <section class="cartao filtros filtros-produtos">
@@ -402,7 +413,11 @@ function abrirDetalhe(ctx, p) {
       <button type="button" class="botao-icone" data-fechar aria-label="Fechar"><i class="ti ti-x"></i></button>
     </div>
     <div class="detalhe-produto">
-      ${miniFoto(fotos[p.foto_path], p.nome, 'detalhe-foto')}
+      <div class="detalhe-fotos">
+        ${miniFoto(fotos[p.foto_path], p.nome, 'detalhe-foto')}
+        ${p.fotos_extra?.length ? `<div class="miniaturas">${p.fotos_extra.map((f, i) =>
+          miniFoto(fotos[f], `${p.nome} (${i + 2})`, 'miniatura')).join('')}</div>` : ''}
+      </div>
       <div class="detalhe-dados">
         ${p.ativo && !p.no_catalogo && !p.personalizado ? '' : `<p>${p.ativo ? '' : '<span class="selo-p selo-inativo">Inativo</span>'}${selosCatalogo(p)}</p>`}
         ${p.descricao ? `<p class="detalhe-descricao">${esc(p.descricao)}</p>` : ''}
@@ -436,11 +451,11 @@ function abrirDetalhe(ctx, p) {
     } catch (err) { falhar(err.message); e.target.disabled = false; }
   });
   dialog.querySelector('[data-excluir]').addEventListener('click', async e => {
-    if (!window.confirm(`Excluir "${p.nome}"?\n\nO produto e a foto dele são apagados de vez. Se preferir guardar, use "Desativar".`)) return;
+    if (!window.confirm(`Excluir "${p.nome}"?\n\nO produto e as fotos dele são apagados de vez. Se preferir guardar, use "Desativar".`)) return;
     e.target.disabled = true;
     try {
       const foto = await sb.rpc('excluir_produto', { p_id: p.id }).then(ok);
-      await apagarFoto(sb, foto);
+      await apagarFoto(sb, [foto, ...(p.fotos_extra || [])]);
       fechar();
       await recarregar(`"${p.nome}" foi excluído.`);
     } catch (err) { falhar(err.message); e.target.disabled = false; }
@@ -448,8 +463,10 @@ function abrirDetalhe(ctx, p) {
 }
 
 function abrirFormulario(ctx, p) {
-  const { sb, produtos, filamentos, fotos, recarregar, catalogo, ficha } = ctx;
+  const { sb, produtos, filamentos, fotos, recarregar, catalogo, ficha, galeria } = ctx;
   const editando = !!p;
+  const maxFotos = galeria ? MAX_FOTOS : 1;
+  const fotosOriginais = todasAsFotos(p);
   // Outros materiais da ficha: insumos e embalagens ativos + os inativos que já estão nela.
   const noProduto = new Set((p?.outros || []).map(x => x.material_id));
   const opcoesOutros = ficha ? ficha.materiais.filter(m => m.ativo || noProduto.has(m.id)) : [];
@@ -470,17 +487,10 @@ function abrirFormulario(ctx, p) {
       <p class="campo-dica nota-form">Só o nome é obrigatório. O resto pode ser preenchido depois.</p>
       <div class="form-produto">
         <div class="campo campo-foto">
-          <span class="campo-rotulo">Foto</span>
-          <div class="foto-escolha">
-            <div data-previa>${miniFoto(fotos[p?.foto_path], p?.nome || 'produto', 'previa-foto')}</div>
-            <div class="foto-botoes">
-              <label class="botao botao-pequeno"><i class="ti ti-photo-plus" aria-hidden="true"></i>
-                <span data-texto-foto>${p?.foto_path ? 'Trocar foto' : 'Escolher foto'}</span>
-                <input type="file" accept="image/jpeg,image/png,image/webp" hidden data-arquivo></label>
-              <button type="button" class="botao-texto" data-tirar-foto ${p?.foto_path ? '' : 'hidden'}>Remover foto</button>
-            </div>
-          </div>
-          <small class="campo-dica">JPEG, PNG ou WebP. Você enquadra a foto em quadrado e ela é reduzida antes de enviar.</small>
+          <span class="campo-rotulo">${galeria ? `Fotos <em>(até ${MAX_FOTOS})</em>` : 'Foto'}</span>
+          <div class="galeria-form" data-galeria></div>
+          <small class="campo-dica">JPEG, PNG ou WebP. Você enquadra a foto em quadrado e ela é reduzida antes de enviar.${galeria
+            ? ' A primeira é a capa: aparece na lista, na vitrine e no carrinho. Use as setas para mudar a ordem.' : ''}</small>
         </div>
 
         <div class="campo"><label for="p-nome">Nome</label>
@@ -568,12 +578,10 @@ function abrirFormulario(ctx, p) {
 
   const form = dialog.querySelector('form');
   const erro = dialog.querySelector('.aviso-erro');
-  const previa = dialog.querySelector('[data-previa]');
-  const tirar = dialog.querySelector('[data-tirar-foto]');
-  const textoFoto = dialog.querySelector('[data-texto-foto]');
+  const galeriaEl = dialog.querySelector('[data-galeria]');
   const avisoNome = dialog.querySelector('[data-aviso-nome]');
-  let fotoNova = null;           // { blob, ext, tipo, url }
-  let tirarFoto = false;
+  // Fotos na ordem da tela: { path, url } das já salvas; { nova: {blob, ext, tipo}, url } das novas.
+  let fotosTela = fotosOriginais.map(f => ({ path: f, url: fotos[f] || null }));
 
   const falhar = msg => { erro.textContent = msg; erro.hidden = false; };
 
@@ -682,7 +690,43 @@ function abrirFormulario(ctx, p) {
     partesEl.addEventListener('input', atualizarTotalFicha);
   }
 
-  dialog.querySelector('[data-arquivo]').addEventListener('change', async e => {
+  function desenharGaleria() {
+    const n = fotosTela.length;
+    galeriaEl.innerHTML = `${fotosTela.map((f, i) => `
+      <div class="galeria-item">
+        ${f.url ? `<img class="previa-foto" src="${esc(f.url)}" alt="${i === 0 ? 'Capa' : `Foto ${i + 1}`}">` : miniFoto(null, '', 'previa-foto')}
+        ${i === 0 && maxFotos > 1 ? '<span class="selo-p selo-capa">Capa</span>' : ''}
+        <div class="galeria-botoes">
+          ${maxFotos > 1 ? `<button type="button" class="botao-icone" data-mover="${i}:-1" ${i === 0 ? 'disabled' : ''} aria-label="Mover a foto ${i + 1} para a esquerda"><i class="ti ti-chevron-left" aria-hidden="true"></i></button>
+          <button type="button" class="botao-icone" data-mover="${i}:1" ${i === n - 1 ? 'disabled' : ''} aria-label="Mover a foto ${i + 1} para a direita"><i class="ti ti-chevron-right" aria-hidden="true"></i></button>` : ''}
+          <button type="button" class="botao-icone" data-remover-foto="${i}" aria-label="Remover a foto ${i + 1}"><i class="ti ti-trash" aria-hidden="true"></i></button>
+        </div>
+      </div>`).join('')}
+      ${n < maxFotos || maxFotos === 1 ? `<label class="galeria-adicionar">
+        <i class="ti ti-photo-plus" aria-hidden="true"></i>
+        <span>${n ? (maxFotos > 1 ? 'Adicionar foto' : 'Trocar foto') : 'Escolher foto'}</span>
+        <input type="file" accept="image/jpeg,image/png,image/webp" hidden data-arquivo></label>` : ''}`;
+  }
+  desenharGaleria();
+
+  galeriaEl.addEventListener('click', e => {
+    const m = e.target.closest('[data-mover]');
+    if (m) {
+      const [i, d] = m.dataset.mover.split(':').map(Number);
+      [fotosTela[i], fotosTela[i + d]] = [fotosTela[i + d], fotosTela[i]];
+      desenharGaleria();
+      galeriaEl.querySelector(`[data-mover="${i + d}:${d}"]:not([disabled])`)?.focus();
+      return;
+    }
+    const r = e.target.closest('[data-remover-foto]');
+    if (r) {
+      const [tirada] = fotosTela.splice(Number(r.dataset.removerFoto), 1);
+      if (tirada.nova) URL.revokeObjectURL(tirada.url);
+      desenharGaleria();
+    }
+  });
+  galeriaEl.addEventListener('change', async e => {
+    if (!e.target.matches('[data-arquivo]')) return;
     const arquivo = e.target.files[0];
     e.target.value = '';
     if (!arquivo) return;
@@ -698,21 +742,12 @@ function abrirFormulario(ctx, p) {
       let reduzida;
       try { reduzida = await otimizarFoto(quadrada); }
       finally { salvar.disabled = false; salvar.textContent = textoSalvar; }
-      if (fotoNova) URL.revokeObjectURL(fotoNova.url);
-      fotoNova = { ...reduzida, url: URL.createObjectURL(reduzida.blob) };
-      tirarFoto = false;
-      previa.innerHTML = `<img class="previa-foto" src="${fotoNova.url}" alt="Prévia da foto">`;
-      tirar.hidden = false;
-      textoFoto.textContent = 'Trocar foto';
+      const nova = { nova: reduzida, url: URL.createObjectURL(reduzida.blob) };
+      // Uma foto só (antes do sql/20): a nova substitui a atual.
+      if (maxFotos === 1) { fotosTela.filter(f => f.nova).forEach(f => URL.revokeObjectURL(f.url)); fotosTela = [nova]; }
+      else if (fotosTela.length < maxFotos) fotosTela.push(nova);
+      desenharGaleria();
     } catch (err) { falhar(err.message); }
-  });
-  tirar.addEventListener('click', () => {
-    if (fotoNova) URL.revokeObjectURL(fotoNova.url);
-    fotoNova = null;
-    tirarFoto = true;
-    previa.innerHTML = miniFoto(null, '', 'previa-foto');
-    tirar.hidden = true;
-    textoFoto.textContent = 'Escolher foto';
   });
 
   // Lê um número opcional: vazio → null; inválido → erro com o nome do campo.
@@ -761,22 +796,39 @@ function abrirFormulario(ctx, p) {
     const botao = form.querySelector('[type="submit"]');
     const textoBotao = botao.textContent;
     botao.disabled = true; botao.textContent = 'Salvando…';
-    let enviada = null;
+    const enviadas = [];
     try {
-      // 1. Foto nova vai primeiro para a pasta, com nome único (nunca sobrescreve).
-      if (fotoNova) {
-        enviada = `${novoId()}.${fotoNova.ext}`;
-        const { error } = await sb.storage.from(PASTA).upload(enviada, fotoNova.blob, {
-          contentType: fotoNova.tipo, upsert: false, cacheControl: '3600',
+      // 1. Fotos novas vão primeiro para a pasta, com nome único (nunca sobrescreve).
+      for (const f of fotosTela.filter(x => x.nova && !x.path)) {
+        const nomeArq = `${novoId()}.${f.nova.ext}`;
+        const { error } = await sb.storage.from(PASTA).upload(nomeArq, f.nova.blob, {
+          contentType: f.nova.tipo, upsert: false, cacheControl: '3600',
         });
-        if (error) { enviada = null; throw new Error('Não foi possível enviar a foto. Verifique a internet e tente de novo.'); }
+        if (error) throw new Error('Não foi possível enviar a foto. Verifique a internet e tente de novo.');
+        enviadas.push(nomeArq);
+        f.path = nomeArq;
       }
-      dados.p_foto_path = enviada || (tirarFoto ? null : p?.foto_path || null);
-      // 2. Produto e cores juntos (tudo ou nada).
+      const lista = fotosTela.map(f => f.path);
+      const mudouFotos = JSON.stringify(lista) !== JSON.stringify(fotosOriginais);
+      // 2. Produto e cores juntos (tudo ou nada). Com várias fotos, a capa só muda
+      //    pelo passo 3, junto com as outras.
+      dados.p_foto_path = galeria ? (p?.foto_path || null) : (lista[0] || null);
       const r = await sb.rpc('salvar_produto', dados).then(ok);
-      // 3. A foto que deixou de ser usada é apagada depois de salvar (R73).
-      await apagarFoto(sb, r?.foto_anterior);
+      enviadas.length = galeria ? enviadas.length : 0;   // uma foto só: já está gravada
+      if (!galeria) await apagarFoto(sb, r?.foto_anterior);   // a foto que deixou de ser usada (R73)
       let feito = editando ? `"${nome}" foi atualizado.` : `"${nome}" foi cadastrado.`;
+      // 3. Fotos na ordem escolhida (R73 v1.12); as que saíram são apagadas depois.
+      if (galeria && mudouFotos) {
+        try {
+          await sb.rpc('salvar_fotos_produto', { p_produto_id: r.id, p_fotos: lista }).then(ok);
+          enviadas.length = 0;
+          await apagarFoto(sb, fotosOriginais.filter(f => !lista.includes(f)));
+        } catch (err) {
+          await apagarFoto(sb, enviadas.splice(0));
+          feito = `"${nome}" foi salvo, mas as fotos não foram gravadas (${err.message}). Abra o produto e tente de novo.`;
+        }
+      }
+      enviadas.length = 0;
       // 4. Marcações do catálogo público (R86), só quando mudaram.
       if (catalogo) {
         const noCatalogo = form.elements.no_catalogo.checked;
@@ -800,13 +852,14 @@ function abrirFormulario(ctx, p) {
       fechar();
       await recarregar(feito);
     } catch (err) {
-      if (enviada) await apagarFoto(sb, enviada);   // não deixa sobra se o salvamento falhou
+      await apagarFoto(sb, enviadas);   // não deixa sobra se o salvamento falhou
+      fotosTela.forEach(f => { if (f.nova && enviadas.includes(f.path)) f.path = null; });
       falhar(err.message);
     } finally {
       botao.disabled = false; botao.textContent = textoBotao;
     }
   });
 
-  dialog.addEventListener('close', () => { if (fotoNova) URL.revokeObjectURL(fotoNova.url); });
+  dialog.addEventListener('close', () => fotosTela.forEach(f => { if (f.nova) URL.revokeObjectURL(f.url); }));
   form.elements.nome.focus();
 }

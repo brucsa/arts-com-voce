@@ -12,7 +12,8 @@ const QTD_MAX = 99;
 const conteudo = document.getElementById('conteudo');
 const contadorEl = document.querySelector('[data-contador]');
 
-let produtos = [];          // { id, nome, descricao, preco, sob_consulta, foto_path, foto }
+let produtos = [];          // { id, nome, descricao, preco, sob_consulta, foto_path, foto, fotos? }
+let cliente = null;         // cliente do Supabase (visitante), guardado para buscar as outras fotos
 // Cores: por enquanto não aparecem nem são escolhidas; ficam "a consultar" (R86).
 let carregado = false;
 let busca = '';
@@ -66,6 +67,7 @@ async function carregar() {
   const sb = createClient(SUPABASE_URL.trim().replace(/\/$/, ''), SUPABASE_ANON_KEY.trim(), {
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
   });
+  cliente = sb;
   const { data, error } = await sb.rpc('catalogo_publico');
   if (error) throw error;
   produtos = (data || []).map(({ cores, ...p }) => ({ ...p, foto: null }));
@@ -84,6 +86,56 @@ function foto(p, alt = true) {
   return p.foto
     ? `<img src="${esc(p.foto)}" alt="${alt ? `Foto de ${esc(p.nome)}` : ''}" loading="lazy">`
     : '<div class="sem-foto"><img src="img/flor.png" alt=""></div>';
+}
+
+/**
+ * Todas as fotos do produto, na ordem (capa primeiro), até 5 (R73, R117 v1.12).
+ * Antes do sql/20 a função não existe: fica só a capa.
+ */
+async function carregarFotos(p) {
+  if (p.fotos) return p.fotos;
+  p.fotos = p.foto ? [p.foto] : [];
+  try {
+    const { data, error } = await cliente.rpc('catalogo_fotos', { p_produto_id: p.id });
+    if (error || !data || data.length < 2) return p.fotos;
+    const caminhos = data.map(f => f.foto_path);
+    const r = await cliente.storage.from('produtos').createSignedUrls(caminhos, 3600);
+    const links = Object.fromEntries((r.data || []).filter(d => d.signedUrl).map(d => [d.path, d.signedUrl]));
+    const urls = caminhos.map(c => links[c]).filter(Boolean);
+    if (urls.length) p.fotos = urls;
+  } catch { /* fica só a capa */ }
+  return p.fotos;
+}
+
+/** Fotos do produto para passar com o dedo (ou com as setas no computador). */
+function carrossel(p, urls) {
+  if (urls.length < 2) return foto(p);
+  return `<div class="carrossel" role="region" aria-roledescription="carrossel" aria-label="Fotos de ${esc(p.nome)}">
+    <div class="carrossel-trilho" tabindex="0" data-trilho>
+      ${urls.map((u, i) => `<div class="carrossel-slide" role="group" aria-roledescription="foto" aria-label="${i + 1} de ${urls.length}">
+        <img src="${esc(u)}" alt="Foto ${i + 1} de ${esc(p.nome)}" ${i ? 'loading="lazy"' : ''}></div>`).join('')}
+    </div>
+    <button type="button" class="carrossel-seta carrossel-ant" data-seta="-1" aria-label="Foto anterior" disabled>‹</button>
+    <button type="button" class="carrossel-seta carrossel-prox" data-seta="1" aria-label="Próxima foto">›</button>
+    <div class="carrossel-pontos" aria-hidden="true">${urls.map((_, i) => `<span class="${i ? '' : 'ativo'}"></span>`).join('')}</div>
+  </div>`;
+}
+
+function ligarCarrossel(el) {
+  const trilho = el.querySelector('[data-trilho]');
+  if (!trilho) return;
+  const pontos = [...el.querySelectorAll('.carrossel-pontos span')];
+  const [ant, prox] = [el.querySelector('[data-seta="-1"]'), el.querySelector('[data-seta="1"]')];
+  const atual = () => Math.round(trilho.scrollLeft / Math.max(trilho.clientWidth, 1));
+  const marcar = () => {
+    const i = atual();
+    pontos.forEach((p, k) => p.classList.toggle('ativo', k === i));
+    ant.disabled = i <= 0; prox.disabled = i >= pontos.length - 1;
+  };
+  trilho.addEventListener('scroll', () => requestAnimationFrame(marcar), { passive: true });
+  el.querySelectorAll('[data-seta]').forEach(b => b.addEventListener('click', () => {
+    trilho.scrollTo({ left: (atual() + Number(b.dataset.seta)) * trilho.clientWidth, behavior: 'smooth' });
+  }));
 }
 
 function linhaTotal() {
@@ -155,7 +207,7 @@ function telaProduto(id) {
   conteudo.innerHTML = `
     <a class="botao botao-texto voltar" href="#/">‹ Voltar para o catálogo</a>
     <div class="detalhe">
-      <div class="detalhe-foto">${foto(p)}</div>
+      <div class="detalhe-foto" data-fotos>${carrossel(p, p.fotos || [])}</div>
       <form class="detalhe-dados" data-form novalidate>
         <div>
           <h1>${esc(p.nome)}</h1>
@@ -178,6 +230,12 @@ function telaProduto(id) {
         </div>
       </form>
     </div>`;
+  const fotosEl = conteudo.querySelector('[data-fotos]');
+  ligarCarrossel(fotosEl);
+  // As outras fotos chegam depois da página aberta (a capa já aparece).
+  if (!p.fotos) carregarFotos(p).then(urls => {
+    if (urls.length > 1 && fotosEl.isConnected) { fotosEl.innerHTML = carrossel(p, urls); ligarCarrossel(fotosEl); }
+  });
   const form = conteudo.querySelector('[data-form]');
   const saida = form.querySelector('[data-qtd]');
   const menos = form.querySelector('[data-menos]');

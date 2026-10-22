@@ -110,7 +110,13 @@ checagens (ordem, verificacao, passou, detalhe) as (
          true,
          (select count(*) from storage.objects o
            where o.bucket_id = 'produtos'
-             and not exists (select 1 from public.produtos p where p.foto_path = o.name))::text
+             and not exists (select 1 from public.produtos p where p.foto_path = o.name)
+             -- Fotos a mais (sql/20, até 5 por produto) também são do produto. Texto
+             -- anterior: só a capa (produtos.foto_path). Lido assim para funcionar
+             -- também antes do sql/20.
+             and not exists (select 1 from unnest(case when to_regclass('public.produto_fotos') is null then '{}'::text[]
+                                 else xpath('//foto_path/text()', query_to_xml('select foto_path from public.produto_fotos', false, false, ''))::text[] end) x
+                              where x = o.name))::text
            || ' arquivo(s) sem produto; podem ser apagados pelo painel do Storage'
 )
 select ordem, verificacao, case when passou then 'OK' else 'FALHOU' end as resultado, detalhe

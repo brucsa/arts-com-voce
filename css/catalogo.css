@@ -125,6 +125,26 @@ main { max-width: 1080px; margin: 0 auto; padding: 16px; }
 @media (min-width: 760px) { .detalhe { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; } }
 .detalhe-foto { aspect-ratio: 1 / 1; border-radius: var(--raio); overflow: hidden; background: var(--azul-claro); }
 .detalhe-dados { display: flex; flex-direction: column; gap: 14px; }
+.carrossel { position: relative; width: 100%; height: 100%; }
+.carrossel-trilho {
+  display: flex; width: 100%; height: 100%; overflow-x: auto; scroll-snap-type: x mandatory;
+  scrollbar-width: none; -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain;
+}
+.carrossel-trilho::-webkit-scrollbar { display: none; }
+.carrossel-trilho:focus-visible { outline: 3px solid var(--azul); outline-offset: -3px; }
+.carrossel-slide { flex: 0 0 100%; scroll-snap-align: start; }
+.carrossel-slide img { width: 100%; height: 100%; object-fit: cover; }
+.carrossel-seta {
+  position: absolute; top: 50%; transform: translateY(-50%); width: 44px; height: 44px; border-radius: 22px; border: 0;
+  background: rgba(255, 255, 255, .92); color: var(--azul-escuro); font-size: 1.6rem; line-height: 1; cursor: pointer;
+  display: none; align-items: center; justify-content: center; box-shadow: 0 1px 4px rgba(43, 34, 51, .18);
+}
+.carrossel-seta:disabled { opacity: 0; pointer-events: none; }
+.carrossel-ant { left: 10px; } .carrossel-prox { right: 10px; }
+@media (hover: hover) { .carrossel-seta { display: flex; } }
+.carrossel-pontos { position: absolute; bottom: 10px; left: 0; right: 0; display: flex; justify-content: center; gap: 6px; pointer-events: none; }
+.carrossel-pontos span { width: 8px; height: 8px; border-radius: 4px; background: rgba(255, 255, 255, .7); box-shadow: 0 0 0 1px rgba(43, 34, 51, .15); }
+.carrossel-pontos span.ativo { background: var(--ambar); width: 18px; }
 .detalhe-dados h1 { margin: 0; font-size: 1.5rem; font-weight: 700; line-height: 1.15; }
 .detalhe-dados .preco { font-size: 1.4rem; padding: 2px 14px; }
 .aviso-consulta { margin: 0; background: var(--ambar-claro); color: var(--ambar-escuro); border-radius: 10px; padding: 10px 12px; font-size: .92rem; }
