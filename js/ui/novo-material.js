@@ -1,5 +1,5 @@
 // Cadastro rápido de material sem sair da compra de estoque.
-// Mesmas regras de Configurações › Materiais: filamento sempre em gramas e com
+// Mesmas regras de Estoque › Materiais: filamento sempre em gramas e com
 // cor; o mesmo material (categoria + tipo + variação) não se repete.
 // Grava na tabela materiais, como Configurações (só a Admin pode).
 import { ok } from '../db.js';
@@ -33,7 +33,7 @@ export function abrirNovoMaterial(sb, { categoria = 'FILAMENTO', existentes = []
         <h2 id="nm-titulo">Cadastrar material novo</h2>
         <button type="button" class="botao-icone" data-fechar aria-label="Cancelar"><i class="ti ti-x"></i></button>
       </div>
-      <p class="campo-dica nota-form">O material fica salvo em Configurações › Materiais e já entra escolhido neste item da compra.</p>
+      <p class="campo-dica nota-form">O material fica salvo em Estoque › Materiais e já entra escolhido neste item da compra.</p>
       <div class="campo"><label for="nm-cat">Categoria</label>
         <select id="nm-cat" name="categoria">${CATEGORIAS.map(c => `<option value="${c.valor}" ${c.valor === categoria ? 'selected' : ''}>${c.rotulo}</option>`).join('')}</select></div>
       <div class="campo"><label for="nm-tipo" data-rot-tipo></label>
@@ -103,7 +103,7 @@ export function abrirNovoMaterial(sb, { categoria = 'FILAMENTO', existentes = []
         && normal(m.variacao) === normal(v.variacao));
       if (igual) {
         return falhar(igual.ativo === false
-          ? 'Esse material já existe, mas está inativo. Reative em Configurações › Materiais.'
+          ? 'Esse material já existe, mas está inativo. Reative em Estoque › Materiais.'
           : 'Esse material já está cadastrado. Feche e escolha-o na lista.');
       }
       const botao = form.querySelector('[type="submit"]');

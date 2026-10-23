@@ -1,14 +1,35 @@
-// Etapa 3 · Estoque de materiais (só Admin)
-// Regras: R12, R40, R49 a R55. Ajuste de inventário: R99 (sql/16), por ajustar_estoque.
+// Etapa 3 · Estoque (só Admin). Simplificado em 23/10/2026, a pedido da Bruna:
+// uma tela só com os materiais (saldo, custo médio, mínimo), o cadastro e o ajuste
+// juntos, e o botão "Entrada de material" (com a opção "Lançar no caixa").
+// As compras aparecem no extrato do Caixa, onde são editadas ou canceladas.
+// Regras: R12, R40, R41, R49 a R55; ajuste de inventário R99 (sql/16), por ajustar_estoque.
+// Nenhuma regra do banco muda: a tela chama as mesmas funções de antes.
 
 import { supabase, configurado } from '../supabase.js';
 import { ok } from '../db.js';
-import { esc, brl, dataBR, hojeISO } from '../format.js';
+import { esc, brl, hojeISO } from '../format.js';
 import { abrirFormulario } from '../ui/formulario.js';
 import { abrirNovaCompra } from './compra.js';
 import { oferecerGastoDosOutros } from './gastos.js';
 import { novaChave } from './producao.js';
 import { CATEGORIA_MATERIAL, nomeMaterial, nomeMaterialHtml, quantidade, custoUnitario } from '../estoque-util.js';
+
+// Cadastro de material (mesmas regras de antes em Configurações, R12, R41, R55).
+const CATEGORIAS_MATERIAL = [
+  { valor: 'FILAMENTO', rotulo: 'Filamento', tipo: 'Tipo', tipoEx: 'PLA', variacao: 'Cor', variacaoEx: 'Branco' },
+  { valor: 'EMBALAGEM', rotulo: 'Embalagem', tipo: 'Tipo', tipoEx: 'Caixa', variacao: 'Descrição ou tamanho', variacaoEx: '15 x 10 x 5 cm' },
+  { valor: 'INSUMO', rotulo: 'Insumo', tipo: 'Item', tipoEx: 'Ímã', variacao: 'Especificação', variacaoEx: '10 mm' },
+];
+const CAT = Object.fromEntries(CATEGORIAS_MATERIAL.map(c => [c.valor, c]));
+const UNIDADES = [
+  { valor: 'un', rotulo: 'Unidade (un)' },
+  { valor: 'g', rotulo: 'Grama (g)' },
+  { valor: 'kg', rotulo: 'Quilo (kg)' },
+  { valor: 'ml', rotulo: 'Mililitro (ml)' },
+  { valor: 'l', rotulo: 'Litro (l)' },
+  { valor: 'cm', rotulo: 'Centímetro (cm)' },
+  { valor: 'm', rotulo: 'Metro (m)' },
+];
 
 export function telaEstoque(el) {
   if (!configurado) {
@@ -19,30 +40,39 @@ export function telaEstoque(el) {
 }
 
 async function carregar(el) {
+  // Contêiner novo a cada abertura, para os eventos não se acumularem.
   const area = document.createElement('div');
   area.className = 'painel-area';
   area.innerHTML = '<p class="texto-secundario">Carregando…</p>';
   el.replaceChildren(area);
   try {
-    await desenhar(area, () => carregar(el));
+    await materiais(area, () => carregar(el));
   } catch (e) {
     area.innerHTML = `<p class="aviso aviso-erro" role="alert">${esc(e.message)}</p>`;
   }
 }
 
-async function desenhar(area, recarregar) {
+// O aviso fica no painel atual (a área é trocada a cada recarga).
+const avisar = texto => {
+  const p = document.querySelector('.painel-area .aviso-ok');
+  if (p) { p.textContent = texto; p.hidden = false; setTimeout(() => { p.hidden = true; }, 4000); }
+};
+
+// ------------------------------------------------------------- Materiais
+
+async function materiais(area, recarregar) {
   const sb = await supabase();
-  const [estoque, iniciais] = await Promise.all([
+  const [estoque, cadastro] = await Promise.all([
     sb.from('vw_estoque').select('*').order('tipo').order('variacao').then(ok),
-    sb.from('vw_lotes').select('*').eq('origem', 'ESTOQUE_INICIAL').eq('status', 'ATIVO')
-      .order('data', { ascending: false }).order('created_at', { ascending: false }).then(ok),
+    sb.from('materiais').select('*').order('tipo').order('variacao').then(ok),
   ]);
+  const CADASTRO = Object.fromEntries(cadastro.map(m => [m.id, m]));
 
   // Ajuste de inventário (R99): só depois da instalação da produção (sql/16).
   const comAjuste = !(await sb.from('ajustes_estoque').select('id').limit(1)).error;
-  const visiveis = estoque.filter(m => m.ativo || Number(m.quantidade) > 0);
+  const ativosPrimeiro = (a, b) => Number(b.ativo) - Number(a.ativo);
   const valorTotal = estoque.reduce((t, m) => t + Number(m.valor), 0);
-  const baixos = visiveis.filter(m => m.estoque_baixo);
+  const baixos = estoque.filter(m => m.ativo && m.estoque_baixo);
 
   area.innerHTML = `
     <div class="grade-metricas">
@@ -59,54 +89,91 @@ async function desenhar(area, recarregar) {
     </div>
 
     <div class="acoes-caixa">
-      <button class="botao botao-primario" data-compra><i class="ti ti-shopping-cart-plus" aria-hidden="true"></i> Nova compra de estoque</button>
-      <button class="botao" data-inicial><i class="ti ti-package-import" aria-hidden="true"></i> Estoque inicial</button>
+      <button class="botao botao-primario" data-entrada><i class="ti ti-package-import" aria-hidden="true"></i> Entrada de material</button>
+      <button class="botao" data-novo-material><i class="ti ti-plus" aria-hidden="true"></i> Novo material</button>
     </div>
     <p class="aviso aviso-ok" role="status" hidden></p>
 
     ${Object.entries(CATEGORIA_MATERIAL).map(([cat, info]) => {
-      const itens = visiveis.filter(m => m.categoria === cat);
+      const itens = estoque.filter(m => m.categoria === cat).sort(ativosPrimeiro);
       return `<section class="cartao">
         <h3>${info.plural}</h3>
         ${itens.length ? `<ul class="lista">${itens.map(m => `
           <li class="linha ${m.ativo ? '' : 'inativo'}">
             <div class="linha-texto">
               <strong>${nomeMaterialHtml(m)}
-                ${m.estoque_baixo ? '<span class="selo-p selo-despesa">Estoque baixo</span>' : ''}
+                ${m.ativo && m.estoque_baixo ? '<span class="selo-p selo-despesa">Estoque baixo</span>' : ''}
                 ${m.ativo ? '' : '<span class="selo-p selo-inativo">Inativo</span>'}</strong>
-              <span class="texto-secundario">Custo médio: ${custoUnitario(m.custo_medio, m.unidade)}</span>
-              <span class="texto-secundario">${m.estoque_minimo !== null ? `Mínimo: ${quantidade(m.estoque_minimo, m.unidade)}` : 'Sem mínimo definido'} · Valor: ${brl(m.valor)}</span>
+              <span class="texto-secundario">Custo médio: ${custoUnitario(m.custo_medio, m.unidade)} · Valor: ${brl(m.valor)}</span>
+              <span class="texto-secundario">${m.estoque_minimo !== null ? `Mínimo: ${quantidade(m.estoque_minimo, m.unidade)}` : 'Sem mínimo definido'}</span>
             </div>
             <div class="linha-direita">
-              <span class="linha-valor ${m.estoque_baixo ? 'valor-alerta' : ''}">${quantidade(m.quantidade, m.unidade)}</span>
-              ${comAjuste ? `<button class="botao botao-pequeno" data-ajustar="${m.material_id}">Ajustar</button>` : ''}
+              <span class="linha-valor ${m.ativo && m.estoque_baixo ? 'valor-alerta' : ''}">${quantidade(m.quantidade, m.unidade)}</span>
+              <div class="linha-acoes">
+                ${comAjuste && m.ativo ? `<button class="botao botao-pequeno" data-ajustar="${m.material_id}">Ajustar</button>` : ''}
+                <button class="botao botao-pequeno" data-editar-material="${m.material_id}">Editar</button>
+              </div>
             </div>
-          </li>`).join('')}</ul>` : `<p class="texto-secundario vazio">${info.vazio}. Cadastre em Configurações → Materiais.</p>`}
+          </li>`).join('')}</ul>` : `<p class="texto-secundario vazio">${info.vazio}. Use "Novo material".</p>`}
       </section>`;
-    }).join('')}
+    }).join('')}`;
 
-    <section class="cartao">
-      <h3>Estoque inicial lançado</h3>
-      <p class="texto-secundario">Materiais que a loja já tinha antes do sistema. Não movimentam o caixa.</p>
-      ${iniciais.length ? `<ul class="lista">${iniciais.map(l => `
-        <li class="linha">
-          <div class="linha-texto">
-            <strong>${nomeMaterialHtml(l)}${l.marca ? ` · ${esc(l.marca)}` : ''}</strong>
-            <span class="texto-secundario">${dataBR(l.data)} · ${quantidade(l.quantidade, l.unidade)} por ${brl(l.custo_total)} · ${custoUnitario(l.custo_unitario, l.unidade)}${l.obs ? ` · ${esc(l.obs)}` : ''}</span>
-          </div>
-          <div class="linha-direita"><div class="linha-acoes">
-            <button class="botao botao-pequeno" data-editar-lote="${l.id}">Editar</button>
-            ${l.tem_consumo_posterior ? '' : `<button class="botao botao-pequeno botao-perigo" data-cancelar-lote="${l.id}">Cancelar</button>`}
-          </div></div>
-        </li>`).join('')}</ul>` : '<p class="texto-secundario vazio">Nenhum estoque inicial lançado.</p>'}
-    </section>`;
 
-  const avisar = texto => {
-    const p = document.querySelector('.painel-area .aviso-ok');
-    if (p) { p.textContent = texto; p.hidden = false; setTimeout(() => { p.hidden = true; }, 4000); }
-  };
+  // Categoria e unidade travam no primeiro movimento de estoque (R41, R55).
+  const comMovimento = new Set(estoque.filter(x => x.tem_movimento).map(x => x.material_id));
+  const formMaterial = m => abrirFormulario({
+    titulo: m ? `Editar · ${nomeMaterial(m)}` : 'Novo material',
+    valores: m ? { ...m } : { categoria: 'FILAMENTO', unidade: 'g', ativo: true },
+    campos: [
+      { nome: 'categoria', rotulo: 'Categoria', tipo: 'select', obrigatorio: true, recarrega: true,
+        opcoes: CATEGORIAS_MATERIAL.map(c => ({ valor: c.valor, rotulo: c.rotulo })),
+        // Saindo de filamento (sempre em g), embalagens e insumos começam em unidades.
+        aoMudar: (v, anterior) => { if (anterior === 'FILAMENTO' && v.categoria !== 'FILAMENTO') v.unidade = 'un'; },
+        fixo: () => (m && comMovimento.has(m.id) ? m.categoria : undefined),
+        dica: () => (m && comMovimento.has(m.id) ? 'Travada: este material já tem movimento de estoque.' : undefined) },
+      { nome: 'tipo', rotulo: v => CAT[v.categoria].tipo, tipo: 'texto', obrigatorio: true,
+        placeholder: v => CAT[v.categoria].tipoEx },
+      { nome: 'variacao', rotulo: v => CAT[v.categoria].variacao, tipo: 'texto',
+        placeholder: v => CAT[v.categoria].variacaoEx },
+      { nome: 'unidade', rotulo: 'Unidade de medida', tipo: 'select', obrigatorio: true, recarrega: true,
+        opcoes: UNIDADES,
+        fixo: v => (m && comMovimento.has(m.id) ? m.unidade : (v.categoria === 'FILAMENTO' ? 'g' : undefined)),
+        dica: v => (m && comMovimento.has(m.id) ? 'Travada: este material já tem movimento de estoque.'
+          : (v.categoria === 'FILAMENTO' ? 'Filamento é sempre controlado em gramas.' : 'Unidade usada no estoque e na ficha técnica deste material.')) },
+      { nome: 'estoque_minimo', rotulo: v => `Avisar quando o estoque ficar abaixo de (${v.categoria === 'FILAMENTO' ? 'g' : (v.unidade || 'un')})`,
+        tipo: 'decimal', casas: 3, min: 0, mensagemFaixa: 'Use zero ou um valor positivo.', placeholder: '200' },
+      ...(m ? [{ nome: 'ativo', rotulo: 'Ativo', tipo: 'checkbox', dica: 'Inativo some das listas de escolha, mas continua no histórico.' }] : []),
+    ],
+    async aoSalvar(v) {
+      // A cor é obrigatória para filamento (custo médio por tipo e cor, R12).
+      if (v.categoria === 'FILAMENTO' && !v.variacao) throw new Error('Informe a cor do filamento.');
+      if (v.categoria === 'FILAMENTO') v.unidade = 'g';
+      if (m) await sb.from('materiais').update(v).eq('id', m.id).select().single().then(ok);
+      else await sb.from('materiais').insert(v).select().single().then(ok);
+      await recarregar();
+    },
+    aoExcluir: m ? async () => { await sb.from('materiais').delete().eq('id', m.id).then(ok); await recarregar(); } : null,
+  });
 
-  area.querySelectorAll('[data-ajustar]').forEach(b => b.addEventListener('click', () => {
+  area.querySelector('[data-novo-material]').addEventListener('click', () => formMaterial(null));
+
+  area.querySelector('[data-entrada]').addEventListener('click', () => {
+    abrirNovaCompra({
+      async aoConcluir(resultado, cab) {
+        await recarregar();
+        if (cab.semCaixa) { avisar('Material lançado no estoque. O caixa não mudou.'); return; }
+        avisar(cab.pago ? 'Compra registrada e paga: saiu do caixa e entrou no estoque.'
+          : 'Compra registrada como A pagar (veja no Caixa). O material já entrou no estoque.');
+        await oferecerGastoDosOutros(resultado, cab, async () => avisar('Gasto dos outros itens registrado no Caixa.'));
+      },
+    });
+  });
+
+  area.addEventListener('click', e => {
+    const be = e.target.closest('[data-editar-material]');
+    if (be) { formMaterial(CADASTRO[be.dataset.editarMaterial]); return; }
+    const b = e.target.closest('[data-ajustar]');
+    if (!b) return;
     const m = estoque.find(x => x.material_id === b.dataset.ajustar);
     const chave = novaChave();
     abrirFormulario({
@@ -129,88 +196,5 @@ async function desenhar(area, recarregar) {
           : `Ajuste registrado: saíram ${quantidade(-r.diferenca, m.unidade)} como perda (${brl(r.valor)}).`);
       },
     });
-  }));
-
-  area.querySelector('[data-compra]').addEventListener('click', () => {
-    abrirNovaCompra({
-      async aoConcluir(resultado, cab) {
-        await recarregar();
-        avisar('Compra registrada. O estoque já foi atualizado.');
-        await oferecerGastoDosOutros(resultado, cab, async () => avisar('Compra e gasto dos outros itens registrados.'));
-      },
-    });
-  });
-
-  area.querySelector('[data-inicial]').addEventListener('click', () => {
-    const ativos = estoque.filter(m => m.ativo);
-    if (!ativos.length) { window.alert('Cadastre os materiais em Configurações → Materiais.'); return; }
-    const MAT = Object.fromEntries(ativos.map(m => [m.material_id, m]));
-    const un = v => MAT[v.material_id]?.unidade || '';
-    abrirFormulario({
-      titulo: 'Estoque inicial',
-      textoSalvar: 'Lançar estoque inicial',
-      valores: { data: hojeISO() },
-      campos: [
-        { nome: 'material_id', rotulo: 'Material', tipo: 'select', obrigatorio: true, recarrega: true,
-          opcoes: [{ valor: '', rotulo: 'Escolha…' }, ...ativos.map(m => ({
-            valor: m.material_id, rotulo: `${CATEGORIA_MATERIAL[m.categoria].rotulo} · ${nomeMaterial(m)} (${m.unidade})` }))] },
-        { nome: 'quantidade', rotulo: v => `Quantidade disponível${un(v) ? ` (${un(v)})` : ''}`, tipo: 'decimal', casas: 3,
-          obrigatorio: true, maiorQueZero: true, placeholder: v => (un(v) === 'g' ? '350' : '10'),
-          dica: 'O que existe de verdade agora. Rolo aberto: os gramas que restam, não o peso do rolo cheio.' },
-        { nome: 'custo_total', rotulo: 'Custo dessa quantidade (R$)', tipo: 'decimal', casas: 2, casasMin: 2,
-          obrigatorio: true, maiorQueZero: true, placeholder: '0,00',
-          dica: 'Proporcional ao que sobrou. Ex.: rolo de 1 kg que custou R$ 90,00 com 350 g restantes → R$ 31,50.' },
-        { nome: 'data', rotulo: 'Data', tipo: 'data', obrigatorio: true, maxData: hojeISO() },
-        { nome: 'marca', rotulo: 'Marca', tipo: 'texto' },
-        { nome: 'obs', rotulo: 'Observação', tipo: 'texto', placeholder: 'Rolo aberto' },
-      ],
-      async aoSalvar(v) {
-        await sb.rpc('registrar_estoque_inicial', {
-          p_material_id: v.material_id, p_data: v.data, p_quantidade: v.quantidade,
-          p_custo_total: v.custo_total, p_marca: v.marca, p_obs: v.obs,
-        }).then(ok);
-        await recarregar();
-        avisar('Estoque inicial lançado. O caixa não foi alterado.');
-      },
-    });
-  });
-
-  area.addEventListener('click', e => {
-    const be = e.target.closest('[data-editar-lote]');
-    const bc = e.target.closest('[data-cancelar-lote]');
-    if (be) {
-      const l = iniciais.find(x => x.id === be.dataset.editarLote);
-      abrirFormulario({
-        titulo: `Editar: ${nomeMaterial(l)}`,
-        valores: { marca: l.marca, obs: l.obs },
-        campos: [
-          { nome: 'marca', rotulo: 'Marca', tipo: 'texto' },
-          { nome: 'obs', rotulo: 'Observação', tipo: 'texto',
-            dica: 'Quantidade e custo não mudam depois de lançados. Para corrigir, cancele e lance de novo.' },
-        ],
-        async aoSalvar(v) {
-          await sb.rpc('editar_lote', { p_lote_id: l.id, p_marca: v.marca, p_obs: v.obs }).then(ok);
-          await recarregar();
-          avisar('Lançamento atualizado.');
-        },
-      });
-    }
-    if (bc) {
-      const l = iniciais.find(x => x.id === bc.dataset.cancelarLote);
-      abrirFormulario({
-        titulo: `Cancelar estoque inicial: ${nomeMaterial(l)}`,
-        textoSalvar: 'Cancelar lançamento',
-        valores: {},
-        campos: [
-          { nome: 'motivo', rotulo: 'Motivo', tipo: 'texto', obrigatorio: true, placeholder: 'Quantidade errada',
-            dica: `${quantidade(l.quantidade, l.unidade)} saem do estoque. O lançamento continua no histórico.` },
-        ],
-        async aoSalvar(v) {
-          await sb.rpc('cancelar_estoque_inicial', { p_lote_id: l.id, p_motivo: v.motivo }).then(ok);
-          await recarregar();
-          avisar('Estoque inicial cancelado.');
-        },
-      });
-    }
   });
 }

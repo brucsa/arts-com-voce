@@ -1,5 +1,6 @@
 // Etapa 1 · Configurações (só Admin)
 // Regras: R2, R12, R16, R27, R34 a R39 da Especificação Oficial.
+// Materiais saíram daqui em 23/10/2026: o cadastro fica em Estoque › Materiais.
 
 import { supabase, configurado } from '../supabase.js';
 import { ok } from '../db.js';
@@ -10,7 +11,6 @@ const ABAS = [
   { id: 'parametros', titulo: 'Parâmetros', icone: 'ti-adjustments' },
   { id: 'canais', titulo: 'Canais', icone: 'ti-building-store' },
   { id: 'categorias', titulo: 'Categorias', icone: 'ti-tags' },
-  { id: 'materiais', titulo: 'Materiais', icone: 'ti-stack-2' },
   { id: 'usuarios', titulo: 'Usuários', icone: 'ti-users' },
 ];
 
@@ -18,23 +18,6 @@ const NATUREZAS = [
   { valor: 'DESPESA', rotulo: 'Despesa', dica: 'Entra no resultado do mês.' },
   { valor: 'ESTOQUE', rotulo: 'Estoque', dica: 'Sai do caixa e entra no estoque. Vira custo quando o material é usado.' },
   { valor: 'INVESTIMENTO', rotulo: 'Investimento', dica: 'Sai do caixa, mas não entra no resultado do mês.' },
-];
-
-const CATEGORIAS_MATERIAL = [
-  { valor: 'FILAMENTO', rotulo: 'Filamento', plural: 'Filamentos', tipo: 'Tipo', tipoEx: 'PLA', variacao: 'Cor', variacaoEx: 'Branco' },
-  { valor: 'EMBALAGEM', rotulo: 'Embalagem', plural: 'Embalagens', tipo: 'Tipo', tipoEx: 'Caixa', variacao: 'Descrição ou tamanho', variacaoEx: '15 x 10 x 5 cm' },
-  { valor: 'INSUMO', rotulo: 'Insumo', plural: 'Insumos', tipo: 'Item', tipoEx: 'Ímã', variacao: 'Especificação', variacaoEx: '10 mm' },
-];
-const CAT = Object.fromEntries(CATEGORIAS_MATERIAL.map(c => [c.valor, c]));
-
-const UNIDADES = [
-  { valor: 'un', rotulo: 'Unidade (un)' },
-  { valor: 'g', rotulo: 'Grama (g)' },
-  { valor: 'kg', rotulo: 'Quilo (kg)' },
-  { valor: 'ml', rotulo: 'Mililitro (ml)' },
-  { valor: 'l', rotulo: 'Litro (l)' },
-  { valor: 'cm', rotulo: 'Centímetro (cm)' },
-  { valor: 'm', rotulo: 'Metro (m)' },
 ];
 
 const PARAMETROS = {
@@ -76,7 +59,7 @@ async function abrirAba(painel) {
   area.className = 'painel-area';
   area.innerHTML = '<p class="texto-secundario carregando">Carregando…</p>';
   painel.replaceChildren(area);
-  const desenhar = { parametros, canais, categorias, materiais, usuarios }[abaAtual];
+  const desenhar = { parametros, canais, categorias, usuarios }[abaAtual];
   try {
     await desenhar(area, () => abrirAba(painel));
   } catch (e) {
@@ -319,82 +302,6 @@ async function categorias(painel, recarregar) {
     if (!b) return;
     if (b.dataset.gasto) formGasto(gastos.find(g => g.id === b.dataset.gasto));
     if (b.dataset.produto) formProduto(produtos.find(p => p.id === b.dataset.produto));
-  });
-}
-
-// ------------------------------------------------------------- Materiais
-
-async function materiais(painel, recarregar) {
-  const sb = await supabase();
-  const [lista, movs] = await Promise.all([
-    sb.from('materiais').select('*').order('tipo').order('variacao').then(ok),
-    sb.from('vw_estoque').select('material_id, tem_movimento').then(ok),
-  ]);
-  // Categoria e unidade travam no primeiro movimento de estoque (R41, R55).
-  const comMovimento = new Set(movs.filter(x => x.tem_movimento).map(x => x.material_id));
-  const unidadeCurta = u => u;
-
-  painel.innerHTML = `
-    <section class="cartao">
-      <div class="cartao-topo">
-        <h3>Materiais</h3>
-        <button class="botao botao-primario" data-novo><i class="ti ti-plus" aria-hidden="true"></i> Novo material</button>
-      </div>
-      <p class="texto-secundario">Aqui ficam os tipos de material. Quantidades e custos entram com as compras, na Etapa 3.</p>
-      ${CATEGORIAS_MATERIAL.map(cat => {
-        const itens = lista.filter(m => m.categoria === cat.valor);
-        return `<div class="grupo">
-          <p class="grupo-nome"><strong>${cat.plural}</strong></p>
-          ${itens.length ? `<ul class="lista">${itens.map(m => `
-            <li class="linha ${m.ativo ? '' : 'inativo'}">
-              <div class="linha-texto">
-                <strong>${esc(m.tipo)}${m.variacao ? ` · ${esc(m.variacao)}` : ''} ${seloInativo(m.ativo)}</strong>
-                <span class="texto-secundario">Em ${unidadeCurta(m.unidade)}${m.estoque_minimo !== null ? ` · alerta abaixo de ${paraCampo(m.estoque_minimo, 0, 3)} ${m.unidade}` : ' · sem alerta de estoque'}</span>
-              </div>
-              <div class="linha-acoes"><button class="botao" data-editar="${m.id}">Editar</button></div>
-            </li>`).join('')}</ul>` : `<p class="texto-secundario vazio">${{ FILAMENTO: 'Nenhum filamento cadastrado', EMBALAGEM: 'Nenhuma embalagem cadastrada', INSUMO: 'Nenhum insumo cadastrado' }[cat.valor]}.</p>`}
-        </div>`;
-      }).join('')}
-    </section>`;
-
-  const formMaterial = (m) => abrirFormulario({
-    titulo: m ? 'Editar material' : 'Novo material',
-    valores: m ? { ...m } : { categoria: 'FILAMENTO', unidade: 'g', ativo: true },
-    campos: [
-      { nome: 'categoria', rotulo: 'Categoria', tipo: 'select', obrigatorio: true, recarrega: true,
-        opcoes: CATEGORIAS_MATERIAL.map(c => ({ valor: c.valor, rotulo: c.rotulo })),
-        // Saindo de filamento (sempre em g), embalagens e insumos começam em unidades.
-        aoMudar: (v, anterior) => { if (anterior === 'FILAMENTO' && v.categoria !== 'FILAMENTO') v.unidade = 'un'; },
-        fixo: () => (m && comMovimento.has(m.id) ? m.categoria : undefined),
-        dica: () => (m && comMovimento.has(m.id) ? 'Travada: este material já tem movimento de estoque.' : undefined) },
-      { nome: 'tipo', rotulo: v => CAT[v.categoria].tipo, tipo: 'texto', obrigatorio: true,
-        placeholder: v => CAT[v.categoria].tipoEx },
-      { nome: 'variacao', rotulo: v => CAT[v.categoria].variacao, tipo: 'texto',
-        placeholder: v => CAT[v.categoria].variacaoEx },
-      { nome: 'unidade', rotulo: 'Unidade de medida', tipo: 'select', obrigatorio: true, recarrega: true,
-        opcoes: UNIDADES,
-        fixo: v => (m && comMovimento.has(m.id) ? m.unidade : (v.categoria === 'FILAMENTO' ? 'g' : undefined)),
-        dica: v => (m && comMovimento.has(m.id) ? 'Travada: este material já tem movimento de estoque.'
-          : (v.categoria === 'FILAMENTO' ? 'Filamento é sempre controlado em gramas.' : 'Unidade usada no estoque e na ficha técnica deste material.')) },
-      { nome: 'estoque_minimo', rotulo: v => `Avisar quando o estoque ficar abaixo de (${v.categoria === 'FILAMENTO' ? 'g' : (v.unidade || 'un')})`,
-        tipo: 'decimal', casas: 3, min: 0, mensagemFaixa: 'Use zero ou um valor positivo.', placeholder: '200' },
-      ...(m ? [{ nome: 'ativo', rotulo: 'Ativo', tipo: 'checkbox', dica: 'Inativo some das listas de escolha, mas continua no histórico.' }] : []),
-    ],
-    async aoSalvar(v) {
-      // A cor é obrigatória para filamento (custo médio por tipo e cor, R12).
-      if (v.categoria === 'FILAMENTO' && !v.variacao) throw new Error('Informe a cor do filamento.');
-      if (v.categoria === 'FILAMENTO') v.unidade = 'g';
-      if (m) await sb.from('materiais').update(v).eq('id', m.id).select().single().then(ok);
-      else await sb.from('materiais').insert(v).select().single().then(ok);
-      await recarregar();
-    },
-    aoExcluir: m ? async () => { await sb.from('materiais').delete().eq('id', m.id).then(ok); await recarregar(); } : null,
-  });
-
-  painel.querySelector('[data-novo]').addEventListener('click', () => formMaterial(null));
-  painel.addEventListener('click', e => {
-    const b = e.target.closest('[data-editar]');
-    if (b) formMaterial(lista.find(m => m.id === b.dataset.editar));
   });
 }
 

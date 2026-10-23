@@ -24,16 +24,16 @@ export const GRUPOS = [
       { rota: 'produtos', titulo: 'Produtos', icone: 'ti-box', etapa: 4,
         itens: ['Catálogo com foto', 'Ficha técnica de materiais e embalagem', 'Custo, margem e lucro por canal'] },
       { rota: 'estoque', titulo: 'Estoque', icone: 'ti-stack-2', etapa: 3,
-        itens: ['Filamentos e embalagens com custo médio', 'Alerta de estoque baixo', 'Peças prontas e histórico de movimentos'] },
+        itens: ['Saldo, custo médio, cadastro e ajuste', 'Entrada de material, com ou sem caixa', 'Alerta de estoque baixo'] },
     ],
   },
   {
     nome: 'Dinheiro',
     telas: [
-      { rota: 'gastos', titulo: 'Gastos e compras', icone: 'ti-shopping-cart', etapa: 2,
-        itens: ['Despesa, estoque ou investimento', 'Comprovante', 'Compra de estoque gera entrada de material'] },
+      { rota: 'gastos', titulo: 'Gastos', icone: 'ti-shopping-cart', etapa: 2,
+        itens: ['Agora dentro do Caixa'] },
       { rota: 'caixa', titulo: 'Caixa', icone: 'ti-wallet', etapa: 2,
-        itens: ['Saldo e extrato', 'Aporte e retirada', 'A receber (Etapa 7)'] },
+        itens: ['Saldo, Entrada e Saída', 'Gastos e compras a pagar', 'Extrato do mês'] },
     ],
   },
   {
@@ -58,7 +58,7 @@ export const GRUPOS = [
     nome: 'Sistema',
     telas: [
       { rota: 'configuracoes', titulo: 'Configurações', icone: 'ti-settings', etapa: 1,
-        itens: ['Percentual do Joca', 'Impressora e tarifa de energia', 'Canais, categorias e materiais'] },
+        itens: ['Percentual do Joca', 'Impressora e tarifa de energia', 'Canais e categorias'] },
     ],
   },
 ];
@@ -73,7 +73,8 @@ export const ROTA_INICIAL = 'inicio';   // Dashboard (R122, versão 1.14)
 // Menu principal (no celular, aparece dentro de "Mais"; a barra inferior não muda).
 export const MENU_PRINCIPAL = ['inicio', 'pedidos', 'produtos', 'caixa', 'joca'];
 // Grupo "Mais": telas prontas que ficam fora do menu principal.
-export const MENU_MAIS = ['gastos', 'estoque', 'producao', 'relatorios', 'configuracoes'];
+export const MENU_MAIS = ['estoque', 'producao', 'relatorios', 'configuracoes'];
+// 23/10/2026: a tela Gastos saiu (tudo no Caixa); #/gastos abre o Caixa.
 // As demais telas (Vendas, Canais, Relatórios,
 // Fechamento e Pedidos da Shopee como tela própria) ficam fora do menu, mas
 // continuam abrindo pelo endereço. A Shopee aparece na aba Shopee de Pedidos.
@@ -81,7 +82,7 @@ export const MENU_MAIS = ['gastos', 'estoque', 'producao', 'relatorios', 'config
 // Barra inferior do celular (Admin).
 export const BARRA_INFERIOR = [
   { rota: 'pedidos', titulo: 'Pedidos', icone: 'ti-truck-delivery' },
-  { rota: 'caixa', titulo: 'Caixa', icone: 'ti-wallet' },
+  { rota: 'produtos', titulo: 'Produtos', icone: 'ti-box' },
   { acao: 'atalhos', titulo: 'Novo', icone: 'ti-plus', destaque: true },
   { rota: 'joca', titulo: 'Joca ⭐', icone: 'ti-star' },
   { acao: 'menu', titulo: 'Mais', icone: 'ti-menu-2' },
@@ -91,7 +92,7 @@ export const BARRA_INFERIOR = [
 export const ATALHOS = [
   { acao: 'novo-pedido', titulo: 'Novo pedido', icone: 'ti-clipboard-plus' },
   { acao: 'novo-gasto', titulo: 'Novo gasto', icone: 'ti-shopping-cart' },
-  { acao: 'nova-compra', titulo: 'Nova compra de material', icone: 'ti-package' },
+  { acao: 'nova-compra', titulo: 'Entrada de material', icone: 'ti-package-import' },
 ];
 
 // Ordem de desenvolvimento (Especificação v1.1).

@@ -12,7 +12,6 @@ import { telaRelatorios } from './telas/relatorios.js';
 import { telaJocaPessoal } from './telas/joca-pessoal.js';
 import { telaJoca } from './telas/joca.js';
 import { telaConfiguracoes } from './telas/configuracoes.js';
-import { telaGastos } from './telas/gastos.js';
 import { telaCaixa } from './telas/caixa.js';
 import { telaEstoque } from './telas/estoque.js';
 import { telaShopee } from './telas/shopee.js';
@@ -238,6 +237,8 @@ async function usarAtalho(acao) {
 
 function rotearAdmin() {
   const rota = location.hash.replace(/^#\/?/, '') || ROTA_INICIAL;
+  // A tela Gastos virou parte do Caixa (23/10/2026): o endereço antigo leva ao Caixa.
+  if (rota === 'gastos') return location.replace('#/caixa');
   const tela = TELAS[rota];
   if (!tela) return location.replace(`#/${ROTA_INICIAL}`);
 
@@ -255,7 +256,6 @@ function rotearAdmin() {
   else if (rota === 'pedidos') telaPedidos(conteudo);
   else if (rota === 'produtos') telaProdutos(conteudo);
   else if (rota === 'configuracoes') telaConfiguracoes(conteudo);
-  else if (rota === 'gastos') telaGastos(conteudo);
   else if (rota === 'caixa') telaCaixa(conteudo);
   else if (rota === 'estoque') telaEstoque(conteudo);
   else if (rota === 'producao') telaProducao(conteudo);

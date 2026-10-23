@@ -257,7 +257,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 
 /* ---------------------------------------------------------- métricas */
 .grade-metricas { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); }
-.metrica { border-radius: var(--raio); padding: 16px; display: grid; gap: 4px; }
+.metrica { border-radius: var(--raio); padding: 16px; display: grid; gap: 4px; align-content: start; }
 .metrica-rotulo { font-size: .85rem; font-weight: 700; display: flex; align-items: center; gap: 6px; }
 .metrica-valor { font-size: 1.6rem; font-weight: 700; letter-spacing: -.01em; }
 .metrica-espera { background: var(--ambar-claro); color: var(--ambar-escuro); }
@@ -762,3 +762,17 @@ button.atalho { background: var(--papel); font: inherit; font-weight: 700; text-
   [data-painel] .cartao:has(.tabela-canais) { padding-left: 12px; padding-right: 12px; }
 }
 .so-leitor { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* Caixa simplificado (23/10/2026): Entrada e Saída lado a lado, e a escolha da saída. */
+.acoes-entrada-saida { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.acoes-entrada-saida .botao { justify-content: center; padding-block: 14px; font-size: 1rem; }
+.botao-entrada { background: var(--menta-claro); border-color: var(--menta-claro); color: var(--menta-escuro); }
+.botao-saida { background: var(--erro-claro); border-color: var(--erro-claro); color: var(--erro); }
+.botao-entrada:hover, .botao-saida:hover { filter: brightness(.97); }
+.escolha-saida { display: grid; gap: 10px; }
+.opcao-saida { display: flex; align-items: center; gap: 14px; width: 100%; text-align: left; padding: 14px 16px;
+  border: 1px solid var(--linha); border-radius: var(--raio); background: var(--papel); color: var(--tinta); cursor: pointer; font: inherit; }
+.opcao-saida:hover, .opcao-saida:focus-visible { border-color: var(--azul-escuro); background: var(--azul-claro); }
+.opcao-saida i { font-size: 26px; color: var(--azul-escuro); }
+.opcao-saida span { display: grid; gap: 2px; }
+.opcao-saida small { color: var(--tinta-2); font-size: .85rem; }

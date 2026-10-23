@@ -1,37 +1,15 @@
-// Etapa 2 · Gastos e compras (só Admin)
-// Regras: R9, R22, R36, R37, R42 a R47.
+// Etapa 2 · Gastos (só Admin): formulários e ações de despesas, investimentos e compras.
+// Regras: R9, R22, R36, R37, R42 a R47, R49. Desde 23/10/2026 não existe mais a tela
+// Gastos: tudo aparece no Caixa (A pagar e extrato), que usa as funções daqui.
 
-import { supabase, configurado } from '../supabase.js';
+import { supabase } from '../supabase.js';
 import { ok } from '../db.js';
 import { esc, brl, dataBR, hojeISO } from '../format.js';
 import { abrirFormulario } from '../ui/formulario.js';
-import { FORMAS, ROTULO_FORMA, SITUACAO, pagoNaHora, intervaloMes, mesAtual } from '../financeiro.js';
-import { abrirNovaCompra } from './compra.js';
+import { FORMAS, ROTULO_FORMA, SITUACAO, pagoNaHora } from '../financeiro.js';
 import { nomeMaterial, quantidade } from '../estoque-util.js';
 
 const NATUREZA_ROT = { DESPESA: 'Despesa', INVESTIMENTO: 'Investimento', ESTOQUE: 'Estoque' };
-const filtro = { mes: null, natureza: '', categoria: '' };
-
-export function telaGastos(el) {
-  if (!configurado) {
-    el.innerHTML = '<section class="cartao"><p class="texto-secundario">Gastos precisam do Supabase configurado.</p></section>';
-    return;
-  }
-  filtro.mes = filtro.mes || mesAtual();
-  carregar(el);
-}
-
-async function carregar(el) {
-  const area = document.createElement('div');
-  area.className = 'painel-area';
-  area.innerHTML = '<p class="texto-secundario">Carregando…</p>';
-  el.replaceChildren(area);
-  try {
-    await desenhar(area, () => carregar(el));
-  } catch (e) {
-    area.innerHTML = `<p class="aviso aviso-erro" role="alert">${esc(e.message)}</p>`;
-  }
-}
 
 // Campos do formulário de gasto (Despesa e Investimento; compras de estoque têm tela própria, R49).
 function camposGasto(categorias, editando) {
@@ -44,7 +22,7 @@ function camposGasto(categorias, editando) {
     { nome: 'categoria_id', rotulo: 'Categoria', tipo: 'select', obrigatorio: true,
       opcoes: [{ valor: '', rotulo: 'Escolha…' },
         ...lista.map(c => ({ valor: c.id, rotulo: `${NATUREZA_ROT[c.natureza]} · ${c.nome}${c.ativo ? '' : ' (inativa)'}` }))],
-      dica: 'Filamento, embalagem e insumos entram pela opção "Nova compra de estoque".' },
+      dica: 'Filamento, embalagem e insumos entram por Estoque › Entrada de material.' },
     { nome: 'valor', rotulo: 'Valor (R$)', tipo: 'decimal', casas: 2, casasMin: 2, obrigatorio: true, maiorQueZero: true, placeholder: '0,00',
       dica: editando && Number(editando.valor_pago) > 0 && Number(editando.valor_pago) < Number(editando.valor)
         ? `Já pago: ${brl(editando.valor_pago)}. O valor não pode ficar abaixo disso.` : undefined },
@@ -104,129 +82,50 @@ export async function oferecerGastoDosOutros(resultado, cabecalho, aoSalvo) {
   return true;
 }
 
-async function desenhar(area, recarregar) {
-  const sb = await supabase();
-  const { inicio, fim } = intervaloMes(filtro.mes);
-
-  let consulta = sb.from('vw_gastos').select('*')
-    .gte('data', inicio).lte('data', fim)
-    .order('data', { ascending: false }).order('created_at', { ascending: false });
-  if (filtro.natureza) consulta = consulta.eq('natureza', filtro.natureza);
-  if (filtro.categoria) consulta = consulta.eq('categoria_id', filtro.categoria);
-
-  const [gastos, categorias] = await Promise.all([
-    consulta.then(ok),
-    sb.from('categorias_lanc').select('id, nome, natureza, ativo').order('nome').then(ok),
-  ]);
-
-  const ativos = gastos.filter(g => g.status === 'ATIVO');
-  const soma = nat => ativos.filter(g => g.natureza === nat).reduce((t, g) => t + Number(g.valor), 0);
-  const aPagar = ativos.reduce((t, g) => t + Number(g.valor_a_pagar), 0);
-
-  // Itens das compras de estoque da lista (R49).
-  const idsCompras = gastos.filter(g => g.eh_compra).map(g => g.id);
-  const lotes = idsCompras.length
+/** Itens das compras de estoque de uma lista (R49): devolve uma função id → texto. */
+export async function itensDasCompras(sb, gastos) {
+  const ids = gastos.filter(g => g.eh_compra).map(g => g.id);
+  const lotes = ids.length
     ? await sb.from('vw_lotes').select('lancamento_id, tipo, variacao, quantidade, unidade, status')
-        .in('lancamento_id', idsCompras).order('created_at').then(ok)
+        .in('lancamento_id', ids).order('created_at').then(ok)
     : [];
-  const itensDe = id => lotes.filter(l => l.lancamento_id === id)
+  return id => lotes.filter(l => l.lancamento_id === id)
     .map(l => `${esc(nomeMaterial(l))} ${quantidade(l.quantidade, l.unidade)}`).join(' + ');
+}
 
-  area.innerHTML = `
-    <section class="cartao filtros">
-      <label class="campo campo-compacto"><span>Mês</span>
-        <input type="month" name="mes" value="${esc(filtro.mes)}" max="${mesAtual()}"></label>
-      <label class="campo campo-compacto"><span>Natureza</span>
-        <select name="natureza">
-          <option value="">Todas</option>
-          <option value="DESPESA" ${filtro.natureza === 'DESPESA' ? 'selected' : ''}>Despesa</option>
-          <option value="INVESTIMENTO" ${filtro.natureza === 'INVESTIMENTO' ? 'selected' : ''}>Investimento</option>
-          <option value="ESTOQUE" ${filtro.natureza === 'ESTOQUE' ? 'selected' : ''}>Estoque (compras)</option>
-        </select></label>
-      <label class="campo campo-compacto"><span>Categoria</span>
-        <select name="categoria">
-          <option value="">Todas</option>
-          ${categorias.map(c => `<option value="${c.id}" ${filtro.categoria === c.id ? 'selected' : ''}>${esc(c.nome)}</option>`).join('')}
-        </select></label>
-    </section>
-
-    <div class="grade-metricas">
-      <div class="metrica metrica-neutra"><p class="metrica-rotulo">Despesas</p><p class="metrica-valor">${brl(soma('DESPESA'))}</p></div>
-      <div class="metrica metrica-neutra"><p class="metrica-rotulo">Investimentos</p><p class="metrica-valor">${brl(soma('INVESTIMENTO'))}</p></div>
-      <div class="metrica metrica-neutra"><p class="metrica-rotulo">Compras de estoque</p><p class="metrica-valor">${brl(soma('ESTOQUE'))}</p>
-        <p class="metrica-nota">Não é despesa: vira custo quando o material é usado.</p></div>
-      <div class="metrica metrica-espera"><p class="metrica-rotulo">Ainda a pagar</p><p class="metrica-valor">${brl(aPagar)}</p></div>
-    </div>
-
-    <section class="cartao">
-      <div class="cartao-topo">
-        <h3>Gastos e compras do mês</h3>
-        <div class="botoes-topo">
-          <button class="botao" data-nova-compra><i class="ti ti-shopping-cart-plus" aria-hidden="true"></i> Nova compra de estoque</button>
-          <button class="botao botao-primario" data-novo><i class="ti ti-plus" aria-hidden="true"></i> Novo gasto</button>
-        </div>
+/** Lista de gastos ou compras com as ações Pagar, Editar e Cancelar. */
+export function htmlListaGastos(gastos, itensDe, vazio) {
+  if (!gastos.length) return `<p class="texto-secundario vazio">${vazio}</p>`;
+  return `<ul class="lista lista-gastos">${gastos.map(g => {
+    const s = SITUACAO[g.situacao];
+    const cancelado = g.status === 'CANCELADO';
+    return `<li class="linha linha-gasto ${cancelado ? 'inativo' : ''}">
+      <div class="linha-texto">
+        <strong>${esc(g.descricao)} <span class="selo-p ${s.classe}">${s.rotulo}</span></strong>
+        <span class="texto-secundario">${dataBR(g.data)} · ${g.eh_compra ? 'Compra de estoque' : NATUREZA_ROT[g.natureza]} · ${esc(g.categoria)} · ${ROTULO_FORMA[g.forma_pagamento]}${g.fornecedor ? ` · ${esc(g.fornecedor)}` : ''}</span>
+        ${g.eh_compra ? `<span class="texto-secundario">Itens: ${itensDe(g.id) || '—'}</span>` : ''}
+        ${g.situacao === 'PAGO_EM_PARTE' ? `<span class="texto-secundario">Pago ${brl(g.valor_pago)} de ${brl(g.valor)}</span>` : ''}
+        ${cancelado ? `<span class="texto-secundario">Cancelado em ${dataBR(g.cancelado_em)}: ${esc(g.motivo_cancelamento)}</span>` : ''}
       </div>
-      <p class="aviso aviso-ok" role="status" hidden></p>
-      ${gastos.length ? `<ul class="lista">${gastos.map(g => {
-        const s = SITUACAO[g.situacao];
-        const cancelado = g.status === 'CANCELADO';
-        return `<li class="linha linha-gasto ${cancelado ? 'inativo' : ''}">
-          <div class="linha-texto">
-            <strong>${esc(g.descricao)} <span class="selo-p ${s.classe}">${s.rotulo}</span></strong>
-            <span class="texto-secundario">${dataBR(g.data)} · ${g.eh_compra ? 'Compra de estoque' : NATUREZA_ROT[g.natureza]} · ${esc(g.categoria)} · ${ROTULO_FORMA[g.forma_pagamento]}${g.fornecedor ? ` · ${esc(g.fornecedor)}` : ''}</span>
-            ${g.eh_compra ? `<span class="texto-secundario">Itens: ${itensDe(g.id) || '—'}</span>` : ''}
-            ${g.situacao === 'PAGO_EM_PARTE' ? `<span class="texto-secundario">Pago ${brl(g.valor_pago)} de ${brl(g.valor)}</span>` : ''}
-            ${cancelado ? `<span class="texto-secundario">Cancelado em ${dataBR(g.cancelado_em)}: ${esc(g.motivo_cancelamento)}</span>` : ''}
-          </div>
-          <div class="linha-direita">
-            <span class="linha-valor ${cancelado ? 'riscado' : ''}">${brl(g.valor)}</span>
-            ${cancelado ? '' : `<div class="linha-acoes">
-              ${Number(g.valor_a_pagar) > 0 ? `<button class="botao botao-pequeno" data-pagar="${g.id}">Pagar</button>` : ''}
-              <button class="botao botao-pequeno" data-editar="${g.id}">Editar</button>
-              <button class="botao botao-pequeno botao-perigo" data-cancelar="${g.id}">Cancelar</button>
-            </div>`}
-          </div>
-        </li>`;
-      }).join('')}</ul>` : '<p class="texto-secundario vazio">Nenhum gasto neste mês.</p>'}
-    </section>`;
+      <div class="linha-direita">
+        <span class="linha-valor ${cancelado ? 'riscado' : ''}">${brl(g.valor)}</span>
+        ${cancelado ? '' : `<div class="linha-acoes">
+          ${Number(g.valor_a_pagar) > 0 ? `<button class="botao botao-pequeno" data-pagar="${g.id}">Pagar</button>` : ''}
+          <button class="botao botao-pequeno" data-editar="${g.id}">Editar</button>
+          <button class="botao botao-pequeno botao-perigo" data-cancelar="${g.id}">Cancelar</button>
+        </div>`}
+      </div>
+    </li>`;
+  }).join('')}</ul>`;
+}
 
-  // Filtros
-  area.querySelector('.filtros').addEventListener('change', e => {
-    if (e.target.name === 'mes' && !e.target.value) return;
-    filtro[e.target.name] = e.target.value;
-    recarregar();
-  });
-
-  const avisar = texto => {
-    const p = document.querySelector('.painel-area .aviso-ok');
-    if (p) { p.textContent = texto; p.hidden = false; setTimeout(() => { p.hidden = true; }, 4000); }
-  };
-
-  area.querySelector('[data-novo]').addEventListener('click', () => {
-    abrirNovoGasto({}, async v => {
-      if (v.data.slice(0, 7) !== filtro.mes) filtro.mes = v.data.slice(0, 7);
-      await recarregar();
-      avisar(v.pago ? 'Gasto registrado e pago.' : 'Gasto registrado como A pagar.');
-    });
-  });
-
-  area.querySelector('[data-nova-compra]').addEventListener('click', () => {
-    abrirNovaCompra({
-      async aoConcluir(resultado, cab) {
-        if (cab.data.slice(0, 7) !== filtro.mes) filtro.mes = cab.data.slice(0, 7);
-        await recarregar();
-        avisar(cab.pago ? 'Compra registrada e paga. O estoque já foi atualizado.' : 'Compra registrada como A pagar. O estoque já foi atualizado.');
-        await oferecerGastoDosOutros(resultado, cab, async () => { await recarregar(); avisar('Compra e gasto dos outros itens registrados.'); });
-      },
-    });
-  });
-
-  area.querySelector('.lista')?.addEventListener('click', e => {
+/** Liga as ações da lista (R42 a R47, R49). */
+export function ligarAcoesGastos(lista, { sb, gastos, categorias, recarregar, avisar }) {
+  lista?.addEventListener('click', e => {
     const b = e.target.closest('button');
     if (!b) return;
     const g = gastos.find(x => x.id === (b.dataset.editar || b.dataset.pagar || b.dataset.cancelar));
     if (!g) return;
-
     if (b.dataset.editar && g.eh_compra) {
       const travado = g.tem_pagamento;
       abrirFormulario({

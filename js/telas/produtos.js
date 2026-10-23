@@ -542,7 +542,7 @@ function abrirFormulario(ctx, p) {
           ${opcoesCor.length ? `<div class="escolha-cores">${opcoesCor.map(f => `
             <label class="opcao-cor"><input type="checkbox" name="cores" value="${f.id}" ${ligadas.has(f.id) ? 'checked' : ''}>
               <span>${esc(f.tipo)} · ${esc(f.variacao)}${f.ativo ? '' : ' (inativo)'}</span></label>`).join('')}</div>`
-            : '<p class="campo-dica">Nenhum filamento ativo. Cadastre filamentos em Configurações → Materiais.</p>'}
+            : '<p class="campo-dica">Nenhum filamento ativo. Cadastre filamentos em Estoque › Materiais.</p>'}
         </fieldset>
 
         ${ficha ? `<fieldset class="itens-compra ficha-consumo">
@@ -555,7 +555,7 @@ function abrirFormulario(ctx, p) {
           <div class="ficha-lista" data-outros></div>
           ${opcoesOutros.length
             ? '<button type="button" class="botao-texto ficha-adicionar" data-add-outro><i class="ti ti-plus" aria-hidden="true"></i> Adicionar material</button>'
-            : '<p class="campo-dica">Nenhum insumo ou embalagem ativo. Cadastre em Configurações → Materiais.</p>'}
+            : '<p class="campo-dica">Nenhum insumo ou embalagem ativo. Cadastre em Estoque › Materiais.</p>'}
           <p class="ficha-total" data-total-ficha aria-live="polite"></p>
         </fieldset>` : ''}
 

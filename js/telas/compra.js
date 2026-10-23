@@ -1,4 +1,6 @@
-// Etapa 3 · Nova compra de estoque (R49 a R51)
+// Etapa 3 · Entrada de material (R49 a R51; antes "Nova compra de estoque").
+// 23/10/2026: com "Lançar no caixa" marcado é uma compra (registrar_compra, pago ou A pagar);
+// desmarcado é material que a loja já tinha, sem mexer no caixa (registrar_estoque_inicial, R52).
 import { supabase } from '../supabase.js';
 import { ok } from '../db.js';
 import { esc, brl, hojeISO, lerValor, lerDecimal, dinheiroCampo } from '../format.js';
@@ -47,21 +49,26 @@ export async function abrirNovaCompra({ aoConcluir }) {
   dialog.innerHTML = `
     <form novalidate>
       <div class="folha-topo">
-        <h2 id="compra-titulo">Nova compra de estoque</h2>
+        <h2 id="compra-titulo">Entrada de material</h2>
         <button type="button" class="botao-icone" data-fechar aria-label="Fechar"><i class="ti ti-x"></i></button>
       </div>
 
+      <div class="campo campo-check">
+        <label><input type="checkbox" name="caixa" checked><span>Lançar no caixa</span></label>
+        <small class="campo-dica" data-dica-caixa></small>
+      </div>
+
       <div class="grade-form">
-        <div class="campo"><label for="c-data">Data da compra</label>
+        <div class="campo"><label for="c-data" data-rot-data>Data da compra</label>
           <input type="date" id="c-data" name="data" value="${hojeISO()}" max="${hojeISO()}"></div>
-        <div class="campo"><label for="c-categoria">Categoria</label>
+        <div class="campo" data-so-caixa><label for="c-categoria">Categoria</label>
           <select id="c-categoria" name="categoria">${categorias.map(c => `<option value="${c.id}">${esc(c.nome)}</option>`).join('')}</select></div>
-        <div class="campo"><label for="c-fornecedor">Fornecedor <em>(opcional)</em></label>
+        <div class="campo" data-so-caixa><label for="c-fornecedor">Fornecedor <em>(opcional)</em></label>
           <input type="text" id="c-fornecedor" name="fornecedor" placeholder="Loja ou site" autocomplete="off"></div>
-        <div class="campo"><label for="c-forma">Forma de pagamento</label>
+        <div class="campo" data-so-caixa><label for="c-forma">Forma de pagamento</label>
           <select id="c-forma" name="forma">${FORMAS.map(f => `<option value="${f.valor}">${f.rotulo}</option>`).join('')}</select></div>
       </div>
-      <div class="campo campo-check">
+      <div class="campo campo-check" data-so-caixa>
         <label><input type="checkbox" name="pago" checked><span>Já foi pago</span></label>
         <small class="campo-dica" data-dica-pago>O valor sai do caixa na data do pagamento.</small>
       </div>
@@ -70,12 +77,12 @@ export async function abrirNovaCompra({ aoConcluir }) {
 
       <fieldset class="itens-compra">
         <legend>Itens</legend>
-        <p class="campo-dica">Valor pago por item. Se o desconto foi só de um item, digite o valor já com desconto. Material que ainda não existe: escolha "+ Cadastrar material novo" na lista.</p>
+        <p class="campo-dica" data-so-caixa>Valor pago por item. Se o desconto foi só de um item, digite o valor já com desconto. Material que ainda não existe: escolha "+ Cadastrar material novo" na lista.</p>
         <div data-itens></div>
         <button type="button" class="botao botao-pequeno" data-add><i class="ti ti-plus" aria-hidden="true"></i> Adicionar item</button>
       </fieldset>
 
-      <fieldset class="itens-compra">
+      <fieldset class="itens-compra" data-so-caixa>
         <legend>Pedido</legend>
         <div class="grade-form">
           <div class="campo"><label for="c-frete">Frete do pedido (R$) <em>(opcional)</em></label>
@@ -100,7 +107,7 @@ export async function abrirNovaCompra({ aoConcluir }) {
       <div class="form-acoes">
         <span class="espaco"></span>
         <button type="button" class="botao" data-fechar>Cancelar</button>
-        <button type="submit" class="botao botao-primario">Registrar compra</button>
+        <button type="submit" class="botao botao-primario">Registrar entrada</button>
       </div>
     </form>`;
   document.body.appendChild(dialog);
@@ -110,6 +117,19 @@ export async function abrirNovaCompra({ aoConcluir }) {
   const erro = dialog.querySelector('.aviso-erro');
   let categoriaTocada = false;
   let n = 0;
+  const noCaixa = () => form.elements.caixa.checked;
+
+  // Sem "Lançar no caixa", só ficam material, quantidade, custo, data e observação.
+  function mostrarModo() {
+    const c = noCaixa();
+    dialog.querySelectorAll('[data-so-caixa]').forEach(x => { x.hidden = !c; });
+    dialog.querySelector('[data-bloco-data-pag]').hidden = !c || !form.elements.pago.checked;
+    dialog.querySelector('[data-rot-data]').textContent = c ? 'Data da compra' : 'Data';
+    dialog.querySelectorAll('[data-rot-valor]').forEach(x => { x.textContent = c ? 'Valor pago (R$)' : 'Custo (R$)'; });
+    dialog.querySelector('[data-dica-caixa]').textContent = c
+      ? 'Compra: o valor sai do caixa (agora ou quando for pago) e o material entra no estoque.'
+      : 'Material que a loja já tinha: entra no estoque pelo custo informado e o caixa não muda.';
+  }
 
   function novaLinha() {
     n += 1;
@@ -120,7 +140,7 @@ export async function abrirNovaCompra({ aoConcluir }) {
         <select id="i-mat-${n}" data-campo="material">${opcoesMaterial()}</select></div>
       <div class="campo"><label for="i-qtd-${n}">Quantidade <span data-unidade></span></label>
         <input type="text" inputmode="decimal" id="i-qtd-${n}" data-campo="quantidade" placeholder="1000"></div>
-      <div class="campo"><label for="i-val-${n}">Valor pago (R$)</label>
+      <div class="campo"><label for="i-val-${n}" data-rot-valor>${noCaixa() ? 'Valor pago (R$)' : 'Custo (R$)'}</label>
         <input type="text" inputmode="decimal" data-dinheiro id="i-val-${n}" data-campo="valor" placeholder="R$ 0,00"></div>
       <div class="campo"><label for="i-marca-${n}">Marca <em>(opcional)</em></label>
         <input type="text" id="i-marca-${n}" data-campo="marca" autocomplete="off"></div>
@@ -168,6 +188,7 @@ export async function abrirNovaCompra({ aoConcluir }) {
     });
     listaItens.querySelectorAll('[data-remover]').forEach(b => { b.hidden = itens.length === 1; });
 
+    dialog.querySelector('[data-resumo]').hidden = !noCaixa();
     dialog.querySelector('[data-resumo]').innerHTML = `
       <div><span>Itens</span><strong>${brl(r.soma)}</strong></div>
       ${frete ? `<div><span>Frete nesta compra</span><strong>+ ${brl(r.freteCompra)}</strong></div>` : ''}
@@ -219,7 +240,7 @@ export async function abrirNovaCompra({ aoConcluir }) {
     }
     if (e.target.name === 'forma') form.elements.pago.checked = pagoNaHora(e.target.value);
     const pago = form.elements.pago.checked;
-    dialog.querySelector('[data-bloco-data-pag]').hidden = !pago;
+    mostrarModo();
     dialog.querySelector('[data-dica-pago]').textContent = pago
       ? 'O valor sai do caixa na data do pagamento.'
       : 'Fica "A pagar" e não mexe no caixa. O estoque entra agora.';
@@ -227,6 +248,33 @@ export async function abrirNovaCompra({ aoConcluir }) {
   });
   dialog.addEventListener('click', e => { if (cliqueForaDoDialogo(e, dialog) || e.target.closest('[data-fechar]')) fechar(); });
   dialog.addEventListener('cancel', e => { e.preventDefault(); fechar(); });
+
+  // Um lançamento de estoque inicial por item (R52). Não passa pelo caixa.
+  async function registrarSemCaixa(itens, data) {
+    const botao = form.querySelector('[type="submit"]');
+    botao.disabled = true; botao.textContent = 'Aguarde…';
+    const obs = form.elements.obs.value.trim();
+    let feitos = 0;
+    try {
+      for (const it of itens) {
+        await sb.rpc('registrar_estoque_inicial', {
+          p_material_id: it.material_id, p_data: data, p_quantidade: it.quantidade,
+          p_custo_total: it.valor, p_marca: it.marca || null, p_obs: obs || null,
+        }).then(ok);
+        feitos += 1;
+        it.div.remove();                     // se outro item falhar, este não é lançado de novo
+      }
+      fechar();
+      await aoConcluir(null, { data, semCaixa: true, itens: feitos });
+    } catch (err) {
+      erro.textContent = feitos ? `${feitos} item(ns) já entraram. ${err.message}` : err.message;
+      erro.hidden = false;
+      if (feitos && !listaItens.children.length) novaLinha();
+      atualizar();
+    } finally {
+      botao.disabled = false; botao.textContent = 'Registrar entrada';
+    }
+  }
 
   form.addEventListener('submit', async e => {
     e.preventDefault();
@@ -237,10 +285,12 @@ export async function abrirNovaCompra({ aoConcluir }) {
     if (data > hojeISO()) return mostrar('A data da compra não pode ser no futuro.');
     for (const [i, it] of itens.entries()) {
       const rot = `Item ${i + 1}`;
+      if (!noCaixa() && (!it.material_id || it.material_id === NOVO)) return mostrar(`${rot}: escolha o material.`);
       if (!it.material_id || it.material_id === NOVO) return mostrar(`${rot}: escolha o material.`);
       if (!Number.isFinite(it.quantidade) || it.quantidade <= 0) return mostrar(`${rot}: informe a quantidade.`);
-      if (!Number.isFinite(it.valor) || it.valor <= 0) return mostrar(`${rot}: informe o valor pago.`);
+      if (!Number.isFinite(it.valor) || it.valor <= 0) return mostrar(`${rot}: informe ${noCaixa() ? 'o valor pago' : 'o custo'}.`);
     }
+    if (!noCaixa()) return registrarSemCaixa(itens, data);
     if ([frete, desconto, outros].some(v => !Number.isFinite(v) || v < 0)) return mostrar('Frete, desconto e outros itens precisam ser valores válidos.');
     if (temOutros && outros <= 0) return mostrar('Informe o valor dos outros itens do pedido, ou desmarque a opção.');
     const pago = form.elements.pago.checked;
@@ -266,11 +316,12 @@ export async function abrirNovaCompra({ aoConcluir }) {
     } catch (err) {
       mostrar(err.message);
     } finally {
-      botao.disabled = false; botao.textContent = 'Registrar compra';
+      botao.disabled = false; botao.textContent = 'Registrar entrada';
     }
   });
 
   novaLinha();
+  mostrarModo();
   atualizar();
   dialog.showModal();
 }
