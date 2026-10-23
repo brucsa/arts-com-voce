@@ -214,7 +214,7 @@ function mensagem() {
     const preco = precoItem(i);
     linhas.push(`• ${nomeItem(i)} x${i.qtd} — ${preco == null ? 'sob consulta' : brl(centavos(preco) * i.qtd / 100)}`);
   });
-  linhas.push('Cores: a consultar');
+  linhas.push('Cores: combinamos com você no WhatsApp');
   linhas.push('', `*Total: ${totalTexto}*${consulta && !soConsulta ? ' + itens sob consulta' : ''}`);
   if (dados.obs.trim()) linhas.push('', `Observação: ${dados.obs.trim()}`);
   return linhas.join('\n').replace(/ /g, ' ');
