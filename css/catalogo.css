@@ -149,7 +149,7 @@ main { max-width: 1080px; margin: 0 auto; padding: 16px; }
 .opcao-valor.indisponivel { opacity: .5; border-style: dashed; }
 .item-combinacao { font-size: .9rem; font-weight: 700; color: var(--azul); }
 .campo-erro[hidden] { display: none; }
-.cores-detalhe { margin: 0; padding: 10px 12px; border-radius: 10px; background: var(--papel); border: 1px solid var(--linha); font-size: .95rem; }
+.cores-detalhe { margin: 0; padding: 10px 12px; border-radius: 10px; background: var(--papel); border: 1px solid var(--linha); font-size: .82rem; }
 .botao-texto:hover { background: var(--azul-claro); }
 
 /* Produto */

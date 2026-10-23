@@ -264,9 +264,8 @@ const opcoesDeEscolha = p => p.opcoes.map((o, k) => ({ ...o, k })).filter(o => o
 function htmlOpcoes(p) {
   return opcoesDeEscolha(p).map(o => `
     <label class="campo-escolha" data-opcao="${o.k}">
-      <span>${esc(o.nome)}</span>
-      <select data-select>
-        <option value="">Escolha ${esc(o.nome.toLocaleLowerCase('pt-BR'))}</option>
+      <select data-select aria-label="${esc(o.nome)}">
+        <option value="">Selecionar ${esc(o.nome.toLocaleLowerCase('pt-BR'))}</option>
         ${o.valores.map(v => `<option value="${esc(v)}" ${escolha.sel[o.k] === v ? 'selected' : ''}>${esc(valorTexto(v))}</option>`).join('')}
       </select>
     </label>`).join('');
@@ -300,7 +299,7 @@ function telaProduto(id) {
         ${p.tempo_impressao_min ? `<p class="tempo-impressao"><strong>Tempo de impressão:</strong> ${tempoTexto(p.tempo_impressao_min)}</p>` : ''}
         ${comOpcoes ? `<div class="escolhas" data-opcoes></div>
           <p class="campo-erro" data-erro-opcoes role="alert" hidden></p>` : ''}
-        <p class="cores-detalhe"><strong>Cores:</strong> a consultar. Combinamos a cor com você pelo WhatsApp.</p>
+        <p class="cores-detalhe"><strong>Cores:</strong> Combinamos com você no WhatsApp</p>
         ${fx.indisponivel ? '<p class="aviso-consulta">Este produto está indisponível no momento. Fale com a gente pelo WhatsApp.</p>' : `
         <div class="quantidade-linha">
           <span id="rot-qtd">Quantidade</span>
