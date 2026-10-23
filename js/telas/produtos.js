@@ -354,7 +354,7 @@ function chipsCores(cores, limite = Infinity) {
 // Com combinações ligadas, o preço vem delas: "a partir de" o menor (R114).
 function precoCartao(p) {
   const v = precoVariacoes(p);
-  if (v) return v.minimo == null ? '<span class="selo-p selo-sem-preco">Sob consulta</span>' : `<strong class="produto-preco">${v.texto}</strong>`;
+  if (v) return v.minimo == null ? '<span class="selo-p selo-sem-preco">Sob consulta</span>' : `<strong class="produto-preco">${v.html}</strong>`;
   return p.sem_preco ? '<span class="selo-p selo-sem-preco">Sem preço</span>' : `<strong class="produto-preco">${brl(p.preco_venda)}</strong>`;
 }
 
@@ -446,7 +446,7 @@ function abrirDetalhe(ctx, p) {
         ${p.ativo && !p.no_catalogo && !p.personalizado ? '' : `<p>${p.ativo ? '' : '<span class="selo-p selo-inativo">Inativo</span>'}${selosCatalogo(p)}</p>`}
         ${p.descricao ? `${ctx.interna ? '<p class="detalhe-titulo">Descrição para o cliente</p>' : ''}<p class="detalhe-descricao">${esc(p.descricao)}</p>` : ''}
         ${p.descricao_interna ? `<p class="detalhe-titulo">Descrição interna <span class="texto-secundario">(só você vê)</span></p><p class="detalhe-descricao">${esc(p.descricao_interna)}</p>` : ''}
-        ${precoVariacoes(p) ? linha('Preço', esc(precoVariacoes(p).texto)) : linha('Preço de venda', p.sem_preco ? '<span class="selo-p selo-sem-preco">Sem preço</span>' : brl(p.preco_venda))}
+        ${precoVariacoes(p) ? linha('Preço', precoVariacoes(p).html || esc(precoVariacoes(p).texto)) : linha('Preço de venda', p.sem_preco ? '<span class="selo-p selo-sem-preco">Sem preço</span>' : brl(p.preco_venda))}
         ${linha('Tempo', tempo)}
         ${linha('Peso', p.peso_g != null ? `${paraCampo(p.peso_g, 0, 2)} g` : '')}
         ${linha('Dimensões (A × L × P)', dims)}

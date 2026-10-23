@@ -56,7 +56,9 @@ export function precoVariacoes(p) {
   const min = Math.min(...precos);
   // Todas ligadas com o mesmo preço: o preço direto, como no catálogo.
   const iguais = precos.length === ligadas.length && precos.every(x => x === min);
-  return { texto: iguais ? brl(min) : `a partir de ${brl(min)}`, minimo: min };
+  return { texto: iguais ? brl(min) : `A partir de ${brl(min)}`, minimo: min,
+           // "A partir de" menor, na mesma linha do valor (como na vitrine)
+           html: iguais ? brl(min) : `<small class="a-partir">A partir de</small> ${brl(min)}` };
 }
 
 /** Combinações no detalhe do produto. */
