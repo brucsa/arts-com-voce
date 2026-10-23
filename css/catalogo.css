@@ -133,6 +133,13 @@ main { max-width: 1080px; margin: 0 auto; padding: 16px; }
 .escolha legend { padding: 0; margin-bottom: 6px; font-weight: 700; }
 .escolha legend strong { color: var(--azul); }
 .opcao-valores { display: flex; flex-wrap: wrap; gap: 8px; }
+.campo-escolha { display: grid; gap: 6px; font-weight: 700; }
+.campo-escolha select {
+  min-height: 48px; padding: 0 40px 0 12px; border-radius: 12px; border: 1px solid var(--linha-forte);
+  background: var(--papel) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='%233A6D7C' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E") no-repeat right 12px center;
+  appearance: none; -webkit-appearance: none; font: inherit; font-weight: 400; color: var(--tinta);
+}
+.campo-escolha select:focus-visible { outline: 3px solid var(--azul); outline-offset: 1px; }
 .opcao-valor {
   min-height: 44px; min-width: 44px; padding: 8px 14px; border-radius: 22px; cursor: pointer;
   background: var(--papel); border: 1.5px solid var(--linha-forte); color: var(--tinta); font-weight: 600;

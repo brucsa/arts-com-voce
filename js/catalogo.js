@@ -75,8 +75,16 @@ function valorTexto(v) {
   const n = Number(t.replace(/^R\$\s*/, '').replace(',', '.'));
   return brl(n);
 }
-const comboTexto = c => c.valores.map(valorTexto).join(' · ');
-const nomeItem = i => { const c = combo(achar(i.id), i.v); return c ? `${achar(i.id).nome} · ${comboTexto(c)}` : achar(i.id).nome; };
+/** O que o cliente escolheu: "Cor da flor: Rosa claro". Opção com um valor só não entra. */
+function comboTexto(c, p) {
+  const ops = p?.opcoes || [];
+  const partes = c.valores.map((v, k) => (ops[k] && ops[k].valores.length < 2 ? null : `${ops[k]?.nome ? `${ops[k].nome}: ` : ''}${valorTexto(v)}`)).filter(Boolean);
+  return partes.join(' · ');
+}
+const nomeItem = i => {
+  const p = achar(i.id), c = combo(p, i.v), t = c ? comboTexto(c, p) : '';
+  return t ? `${p.nome} (${t})` : p.nome;
+};
 /** Preço no cartão e no topo da página: com combinações, "a partir de" o menor (R114). */
 function faixa(p) {
   if (!p.combs) return { texto: p.sob_consulta ? 'Sob consulta' : brl(p.preco), consulta: p.sob_consulta };
@@ -250,15 +258,18 @@ function telaVitrine() {
   desenhar();
 }
 
-/** Escolha das opções (R117): um grupo de botões por opção. */
+/** Opções com mais de um valor: são as que o cliente escolhe (R117). */
+const opcoesDeEscolha = p => p.opcoes.map((o, k) => ({ ...o, k })).filter(o => o.valores.length > 1);
+/** Escolha das opções (R117): uma lista de seleção por opção, só com os nomes; o preço fica na etiqueta do topo. */
 function htmlOpcoes(p) {
-  return p.opcoes.map((o, k) => `
-    <fieldset class="escolha" data-opcao="${k}">
-      <legend>${esc(o.nome)}</legend>
-      <div class="opcao-valores">${o.valores.map(v => `
-        <button type="button" class="opcao-valor" data-valor="${esc(v)}" aria-pressed="${escolha.sel[k] === v}">${esc(valorTexto(v))}</button>`).join('')}
-      </div>
-    </fieldset>`).join('');
+  return opcoesDeEscolha(p).map(o => `
+    <label class="campo-escolha" data-opcao="${o.k}">
+      <span>${esc(o.nome)}</span>
+      <select data-select>
+        <option value="">Escolha ${esc(o.nome.toLocaleLowerCase('pt-BR'))}</option>
+        ${o.valores.map(v => `<option value="${esc(v)}" ${escolha.sel[o.k] === v ? 'selected' : ''}>${esc(valorTexto(v))}</option>`).join('')}
+      </select>
+    </label>`).join('');
 }
 /** Combinação ligada com exatamente os valores escolhidos, ou null. */
 const comboEscolhido = p => (p.combs && escolha.sel.length === p.opcoes.length && escolha.sel.every(Boolean)
@@ -327,27 +338,24 @@ function telaProduto(id) {
   function desenharOpcoes() {
     if (!opcoesEl) return;
     opcoesEl.innerHTML = htmlOpcoes(p);
-    opcoesEl.querySelectorAll('[data-opcao]').forEach(fs => {
-      const k = Number(fs.dataset.opcao);
-      // Valor que não combina com o resto da escolha fica apagado, mas pode ser
-      // tocado: ele entra e o que não combina com ele sai da escolha.
-      fs.querySelectorAll('[data-valor]').forEach(bt => {
-        const fora = !disponivel(p, k, bt.dataset.valor);
-        bt.classList.toggle('indisponivel', fora);
-        bt.setAttribute('aria-label', fora ? `${valorTexto(bt.dataset.valor)} (não combina com a escolha atual)` : valorTexto(bt.dataset.valor));
+    // Valor que não combina com o resto da escolha aparece marcado, mas pode ser
+    // escolhido: ele entra e o que não combina com ele sai da escolha.
+    opcoesEl.querySelectorAll('[data-opcao]').forEach(lb => {
+      const k = Number(lb.dataset.opcao);
+      lb.querySelectorAll('option[value]:not([value=""])').forEach(op => {
+        if (!disponivel(p, k, op.value)) op.textContent = `${op.textContent} (não combina com a escolha)`;
       });
     });
   }
-  opcoesEl?.addEventListener('click', e => {
-    const b = e.target.closest('[data-valor]');
-    if (!b) return;
-    const k = Number(b.closest('[data-opcao]').dataset.opcao);
-    escolha.sel[k] = escolha.sel[k] === b.dataset.valor && p.opcoes[k].valores.length > 1 ? undefined : b.dataset.valor;
-    // Valor escolhido antes que não combina mais com este sai da escolha.
+  opcoesEl?.addEventListener('change', e => {
+    const sel = e.target.closest('[data-select]');
+    if (!sel) return;
+    const k = Number(sel.closest('[data-opcao]').dataset.opcao);
+    escolha.sel[k] = sel.value || undefined;
     escolha.sel.forEach((v, n) => { if (n !== k && v && !disponivel(p, n, v)) escolha.sel[n] = undefined; });
     erroOpcoes.hidden = true;
     desenharOpcoes(); mostrarPreco();
-    opcoesEl.querySelector(`[data-opcao="${k}"] [data-valor="${CSS.escape(b.dataset.valor)}"]`)?.focus();
+    opcoesEl.querySelector(`[data-opcao="${k}"] select`)?.focus();
   });
   desenharOpcoes(); mostrarPreco();
   if (fx.indisponivel) return;
@@ -361,10 +369,10 @@ function telaProduto(id) {
     e.preventDefault();
     const c = comboEscolhido(p);
     if (comOpcoes && !c) {
-      const falta = p.opcoes.filter((o, k) => !escolha.sel[k]).map(o => o.nome);
+      const falta = opcoesDeEscolha(p).filter(o => !escolha.sel[o.k]).map(o => o.nome.toLocaleLowerCase('pt-BR'));
       erroOpcoes.textContent = falta.length ? `Escolha ${falta.join(' e ')}.` : 'Essa combinação não está disponível. Escolha outra.';
       erroOpcoes.hidden = false;
-      opcoesEl.querySelector('[data-valor]')?.focus();
+      opcoesEl.querySelector('select')?.focus();
       return;
     }
     const v = c?.id;
@@ -376,7 +384,7 @@ function telaProduto(id) {
     guardarCarrinho();
     // "Enviar pedido" vai para o carrinho (nome, telefone e envio); "Adicionar mais itens" volta para a vitrine.
     if (e.submitter?.value === 'mais') {
-      aviso = `${qtd > 1 ? `${qtd}× ` : ''}${p.nome}${c ? ` (${comboTexto(c)})` : ''} foi adicionado ao carrinho.`;
+      aviso = `${qtd > 1 ? `${qtd}× ` : ''}${c && comboTexto(c, p) ? `${p.nome} (${comboTexto(c, p)})` : p.nome} foi adicionado ao carrinho.`;
       location.hash = '#/';
     } else location.hash = '#/carrinho';
   });
@@ -403,7 +411,7 @@ function telaCarrinho() {
         <div class="item-foto">${foto(p, false)}</div>
         <div>
           <div class="item-nome">${esc(p.nome)}</div>
-          ${c ? `<div class="item-combinacao">${esc(comboTexto(c))}</div>` : ''}
+          ${c && comboTexto(c, p) ? `<div class="item-combinacao">${esc(comboTexto(c, p))}</div>` : ''}
           <div class="item-cor">Cores a consultar</div>
           <div class="preco ${preco == null ? 'preco-consulta' : ''}">${preco == null ? 'Sob consulta' : brl(centavos(preco) * i.qtd / 100)}</div>
         </div>
