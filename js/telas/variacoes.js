@@ -118,9 +118,9 @@ export function montarEditorVariacoes(el, p, precoPadrao) {
       const preenchidos = o.valores.filter(v => v.valor.trim());
       const preco = preenchidos.find(v => pareceValor(v.valor));
       const msg = preco
-        ? `“${preco.valor.trim()}” parece um preço. Aqui vão as escolhas do cliente (ex.: Rosa claro, Vermelha); o preço vai em cada combinação, logo abaixo.`
+        ? `“${preco.valor.trim()}” parece um preço. Em “Escolhas” vão as opções do cliente (ex.: Rosa claro, Vermelha); o preço vai em cada combinação, logo abaixo.`
         : preenchidos.length === 1
-          ? `Com um valor só, o cliente não tem o que escolher aqui. Para ele escolher, coloque as escolhas como valores desta opção (ex.: “Cor da flor”: Rosa claro, Vermelha).`
+          ? `Com uma escolha só, o cliente não tem o que escolher aqui. Coloque todas as escolhas juntas (ex.: “Cor da flor” com Rosa claro e Vermelha).`
           : '';
       p.textContent = msg; p.hidden = !msg;
     });
@@ -130,19 +130,20 @@ export function montarEditorVariacoes(el, p, precoPadrao) {
       ${opcoes.map((o, i) => `
         <div class="opcao-variacao" data-opcao="${i}">
           <div class="opcao-topo">
-            <label class="campo campo-compacto"><span>Opção ${i + 1}</span>
+            <label class="campo campo-compacto"><span>O que o cliente escolhe${opcoes.length > 1 ? ` (${i + 1})` : ''}</span>
               <input type="text" data-nome-opcao maxlength="30" value="${esc(o.nome)}" placeholder="Ex.: Cor da flor" autocomplete="off"></label>
             <button type="button" class="botao-icone" data-tirar-opcao aria-label="Tirar a opção ${esc(o.nome || i + 1)}"><i class="ti ti-trash" aria-hidden="true"></i></button>
           </div>
+          <p class="rotulo-escolhas">Escolhas</p>
           <div class="valores-opcao">
             ${o.valores.map((v, j) => `<span class="valor-opcao">
-              <input type="text" data-valor="${j}" maxlength="40" value="${esc(v.valor)}" placeholder="Ex.: Rosa claro" autocomplete="off" aria-label="Valor ${j + 1} de ${esc(o.nome || `opção ${i + 1}`)}">
-              <button type="button" class="botao-icone" data-tirar-valor="${j}" aria-label="Tirar o valor ${esc(v.valor || j + 1)}"><i class="ti ti-x" aria-hidden="true"></i></button></span>`).join('')}
-            ${o.valores.length < MAX_VALORES ? '<button type="button" class="botao-texto" data-add-valor><i class="ti ti-plus" aria-hidden="true"></i> Valor</button>' : ''}
+              <input type="text" data-valor="${j}" maxlength="40" value="${esc(v.valor)}" placeholder="Ex.: Rosa claro" autocomplete="off" aria-label="Escolha ${j + 1} de ${esc(o.nome || `opção ${i + 1}`)}">
+              <button type="button" class="botao-icone" data-tirar-valor="${j}" aria-label="Tirar a escolha ${esc(v.valor || j + 1)}"><i class="ti ti-x" aria-hidden="true"></i></button></span>`).join('')}
+            ${o.valores.length < MAX_VALORES ? '<button type="button" class="botao-texto" data-add-valor><i class="ti ti-plus" aria-hidden="true"></i> Escolha</button>' : ''}
           </div>
           <p class="aviso aviso-atencao aviso-opcao" data-aviso-opcao role="status" hidden></p>
         </div>`).join('')}
-      ${opcoes.length < MAX_OPCOES ? `<button type="button" class="botao-texto ficha-adicionar" data-add-opcao><i class="ti ti-plus" aria-hidden="true"></i> ${opcoes.length ? 'Adicionar opção' : 'Adicionar variações (ex.: Cor da flor, Tamanho)'}</button>` : ''}`;
+      ${opcoes.length < MAX_OPCOES ? `<button type="button" class="botao-texto ficha-adicionar" data-add-opcao><i class="ti ti-plus" aria-hidden="true"></i> ${opcoes.length ? 'Adicionar outra escolha (ex.: Tamanho)' : 'Adicionar variações (ex.: Cor da flor, Tamanho)'}</button>` : ''}`;
   }
   function desenharCombinacoes() {
     const lista = combinacoes();

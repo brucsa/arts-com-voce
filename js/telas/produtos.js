@@ -594,7 +594,7 @@ function abrirFormulario(ctx, p) {
 
         ${variacoes ? `<fieldset class="itens-compra variacoes-form">
           <legend>Variações <em>(opcional)</em></legend>
-          <p class="campo-dica">A opção é o que o cliente escolhe (ex.: Cor da flor) e os valores são as escolhas (ex.: Rosa claro, Vermelha). Até 3 opções. O preço vai em cada combinação, logo abaixo; ela pode ser desligada. A ficha de cada combinação é ajustada no detalhe do produto.</p>
+          <p class="campo-dica">Em “O que o cliente escolhe”, escreva o tipo (ex.: Cor da flor) e, em “Escolhas”, cada opção (ex.: Rosa claro, Vermelha). Até 3 tipos. O preço vai em cada combinação, logo abaixo; ela pode ser desligada. A ficha de cada combinação é ajustada no detalhe do produto.</p>
           <div data-variacoes></div>
         </fieldset>` : ''}
 

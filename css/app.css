@@ -614,6 +614,7 @@ button.atalho { background: var(--papel); font: inherit; font-weight: 700; text-
 .valores-opcao { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .valor-opcao { display: inline-flex; align-items: center; gap: 2px; }
 .valor-opcao input { width: 150px; max-width: 100%; }
+.rotulo-escolhas { margin: 0; font-size: .9rem; font-weight: 700; }
 .lista-combinacoes-form { display: grid; gap: 6px; }
 .linha-combinacao { display: grid; grid-template-columns: minmax(0, 1fr) 120px auto; gap: 10px; align-items: end;
   padding: 6px 0; border-bottom: 1px solid var(--linha); }
