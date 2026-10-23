@@ -1,7 +1,7 @@
 // Etapa 3 · Nova compra de estoque (R49 a R51)
 import { supabase } from '../supabase.js';
 import { ok } from '../db.js';
-import { esc, brl, hojeISO, lerValor, lerDecimal } from '../format.js';
+import { esc, brl, hojeISO, lerValor, lerDecimal, dinheiroCampo } from '../format.js';
 import { FORMAS, pagoNaHora } from '../financeiro.js';
 import { CATEGORIA_MATERIAL, nomeMaterial, ratear, custoUnitario } from '../estoque-util.js';
 import { cliqueForaDoDialogo } from '../ui/dialogo.js';
@@ -79,16 +79,16 @@ export async function abrirNovaCompra({ aoConcluir }) {
         <legend>Pedido</legend>
         <div class="grade-form">
           <div class="campo"><label for="c-frete">Frete do pedido (R$) <em>(opcional)</em></label>
-            <input type="text" inputmode="decimal" id="c-frete" name="frete" placeholder="0,00"></div>
+            <input type="text" inputmode="decimal" data-dinheiro id="c-frete" name="frete" placeholder="R$ 0,00"></div>
           <div class="campo"><label for="c-desc">Desconto geral do pedido (R$) <em>(opcional)</em></label>
-            <input type="text" inputmode="decimal" id="c-desc" name="desconto" placeholder="0,00"></div>
+            <input type="text" inputmode="decimal" data-dinheiro id="c-desc" name="desconto" placeholder="R$ 0,00"></div>
         </div>
         <small class="campo-dica">Frete e desconto geral são divididos entre os itens, proporcionalmente ao valor de cada um.</small>
         <div class="campo campo-check">
           <label><input type="checkbox" name="tem_outros"><span>O pedido também teve itens que não são estoque (ferramenta, peça, etc.)</span></label>
         </div>
         <div class="campo" data-bloco-outros hidden><label for="c-outros">Valor desses outros itens (R$)</label>
-          <input type="text" inputmode="decimal" id="c-outros" name="outros" placeholder="0,00">
+          <input type="text" inputmode="decimal" data-dinheiro id="c-outros" name="outros" placeholder="R$ 0,00">
           <small class="campo-dica">Eles serão lançados como gasto separado. O frete e o desconto são divididos entre as duas partes.</small></div>
       </fieldset>
 
@@ -121,7 +121,7 @@ export async function abrirNovaCompra({ aoConcluir }) {
       <div class="campo"><label for="i-qtd-${n}">Quantidade <span data-unidade></span></label>
         <input type="text" inputmode="decimal" id="i-qtd-${n}" data-campo="quantidade" placeholder="1000"></div>
       <div class="campo"><label for="i-val-${n}">Valor pago (R$)</label>
-        <input type="text" inputmode="decimal" id="i-val-${n}" data-campo="valor" placeholder="0,00"></div>
+        <input type="text" inputmode="decimal" data-dinheiro id="i-val-${n}" data-campo="valor" placeholder="R$ 0,00"></div>
       <div class="campo"><label for="i-marca-${n}">Marca <em>(opcional)</em></label>
         <input type="text" id="i-marca-${n}" data-campo="marca" autocomplete="off"></div>
       <div class="item-compra-rodape">

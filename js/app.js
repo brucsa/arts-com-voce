@@ -1,7 +1,10 @@
 import { configurado, supabase, problemaConfig } from './supabase.js';
 import { cliqueForaDoDialogo } from './ui/dialogo.js';
 import { TELAS, BARRA_INFERIOR, ATALHOS, ROTA_INICIAL, MENU_PRINCIPAL, MENU_MAIS } from './menu.js';
-import { esc } from './format.js';
+import { esc, ligarCamposDinheiro } from './format.js';
+
+// Campos de dinheiro mostram "R$ 0,00" ao sair do campo (em todas as telas).
+ligarCamposDinheiro();
 import { telaLogin } from './telas/login.js';
 import { telaEmConstrucao } from './telas/em-construcao.js';
 import { telaInicio } from './telas/inicio.js';

@@ -15,7 +15,7 @@
 
 import { supabase, configurado } from '../supabase.js';
 import { ok } from '../db.js';
-import { esc, brl, dataBR, dataHoraBR, hojeISO, lerDecimal, paraCampo, arred2 } from '../format.js';
+import { esc, brl, dataBR, dataHoraBR, hojeISO, lerDecimal, paraCampo, arred2, dinheiroCampo } from '../format.js';
 import { cliqueForaDoDialogo } from '../ui/dialogo.js';
 import { abrirFormulario } from '../ui/formulario.js';
 import { FORMAS, ROTULO_FORMA } from '../financeiro.js';
@@ -687,10 +687,10 @@ function abrirFormularioPedido(ctx, existente) {
 
         <div class="grade-dois">
           <div class="campo"><label for="pd-desconto">Desconto (R$)</label>
-            <input type="text" inputmode="decimal" id="pd-desconto" name="desconto" value="${num(p?.desconto) ? paraCampo(p.desconto, 2, 2) : ''}" placeholder="0,00" autocomplete="off">
+            <input type="text" inputmode="decimal" data-dinheiro id="pd-desconto" name="desconto" value="${num(p?.desconto) ? dinheiroCampo(p.desconto) : ''}" placeholder="R$ 0,00" autocomplete="off">
             <small class="campo-erro" data-erro="desconto" hidden></small></div>
           <div class="campo"><label for="pd-frete">Frete (R$)</label>
-            <input type="text" inputmode="decimal" id="pd-frete" name="frete" value="${num(p?.frete) ? paraCampo(p.frete, 2, 2) : ''}" placeholder="0,00" autocomplete="off">
+            <input type="text" inputmode="decimal" data-dinheiro id="pd-frete" name="frete" value="${num(p?.frete) ? dinheiroCampo(p.frete) : ''}" placeholder="R$ 0,00" autocomplete="off">
             <small class="campo-erro" data-erro="frete" hidden></small></div>
         </div>
 
@@ -855,7 +855,7 @@ function abrirFormularioPedido(ctx, existente) {
         <div class="campo"><label>Quantidade</label>
           <input type="text" inputmode="numeric" data-qtd value="${item.quantidade ?? 1}" autocomplete="off"></div>
         <div class="campo"><label>Preço unitário (R$)</label>
-          <input type="text" inputmode="decimal" data-preco value="${item.preco_unitario != null ? paraCampo(item.preco_unitario, 2, 2) : ''}" placeholder="0,00" autocomplete="off"></div>
+          <input type="text" inputmode="decimal" data-dinheiro data-preco value="${item.preco_unitario != null ? dinheiroCampo(item.preco_unitario) : ''}" placeholder="R$ 0,00" autocomplete="off"></div>
 
         <div class="item-compra-rodape">
           <span class="texto-secundario" data-valor-item></span>
@@ -955,13 +955,13 @@ function abrirFormularioPedido(ctx, existente) {
       corSel.innerHTML = '<option value="">Sem cor definida</option>' + (prod ? prod.cores.map(c =>
         `<option value="${c.material_id}">${esc(corDoFilamento(c))}${c.ativo ? '' : ' (inativo)'}</option>`).join('') : '');
       // Com combinações, o preço vem da combinação escolhida (R114).
-      el.querySelector('[data-preco]').value = prod && !prod.variacoes?.length && prod.preco_venda != null ? paraCampo(prod.preco_venda, 2, 2) : '';
+      el.querySelector('[data-preco]').value = prod && !prod.variacoes?.length && prod.preco_venda != null ? dinheiroCampo(prod.preco_venda) : '';
       ajustarVariacao(el, true);
       ajustarCores(el);
     }
     if (e.target.matches('[data-variacao]')) {
       const v = variacaoPorId(el.querySelector('[data-produto]').value, e.target.value);
-      el.querySelector('[data-preco]').value = v && v.preco != null ? paraCampo(v.preco, 2, 2) : '';
+      el.querySelector('[data-preco]').value = v && v.preco != null ? dinheiroCampo(v.preco) : '';
       ajustarCores(el);
     }
     if (e.target.matches('[data-cor-personalizado]')) {

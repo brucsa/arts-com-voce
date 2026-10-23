@@ -4,7 +4,7 @@
 // lista de pedidos, sem cliente e sem origem (R103, R104).
 
 import { ok } from '../db.js';
-import { esc, brl, lerDecimal, paraCampo, arred2, hojeISO, FUSO } from '../format.js';
+import { esc, brl, lerDecimal, paraCampo, arred2, hojeISO, FUSO, dinheiroCampo } from '../format.js';
 import { cliqueForaDoDialogo } from '../ui/dialogo.js';
 
 const corDoFilamento = f => `${f.tipo} · ${f.variacao ?? f.cor}`;
@@ -119,20 +119,20 @@ export async function abrirVendaShopee(sb, { shopee = null, venda = null, itensV
             <div class="campo"><label>Quantidade</label>
               <input type="text" inputmode="numeric" data-qtd value="${it.quantidade}" autocomplete="off"></div>
             <div class="campo"><label>Preço unitário (R$)</label>
-              <input type="text" inputmode="decimal" data-preco value="${paraCampo(it.preco, 2, 2)}" autocomplete="off"></div>
+              <input type="text" inputmode="decimal" data-dinheiro data-preco value="${dinheiroCampo(it.preco)}" autocomplete="off"></div>
             <div class="cores-partes" data-cores>${htmlCores(null, it, it.produto_id || null)}</div>
           </div>`).join('')}</div>
       </fieldset>
 
       <div class="grade-form">
         <div class="campo"><label for="vs-desc">Desconto do vendedor (R$)</label>
-          <input type="text" inputmode="decimal" id="vs-desc" name="desconto" value="${paraCampo(valores.desconto, 2, 2)}" autocomplete="off">
+          <input type="text" inputmode="decimal" data-dinheiro id="vs-desc" name="desconto" value="${dinheiroCampo(valores.desconto)}" autocomplete="off">
           <small class="campo-dica">Cupom do vendedor. Sai do faturamento e da comissão.</small></div>
         <div class="campo"><label for="vs-taxa">Taxa da Shopee (R$)</label>
-          <input type="text" inputmode="decimal" id="vs-taxa" name="taxa" value="${paraCampo(valores.taxa, 2, 2)}" autocomplete="off">
+          <input type="text" inputmode="decimal" data-dinheiro id="vs-taxa" name="taxa" value="${dinheiroCampo(valores.taxa)}" autocomplete="off">
           <small class="campo-dica">Comissão + serviço + transação da planilha.</small></div>
         <div class="campo"><label for="vs-frete">Frete do comprador (R$)</label>
-          <input type="text" inputmode="decimal" id="vs-frete" name="frete" value="${paraCampo(valores.frete, 2, 2)}" autocomplete="off">
+          <input type="text" inputmode="decimal" data-dinheiro id="vs-frete" name="frete" value="${dinheiroCampo(valores.frete)}" autocomplete="off">
           <small class="campo-dica">Só informativo: não entra no faturamento.</small></div>
       </div>
       <div class="resumo-compra" data-resumo aria-live="polite"></div>

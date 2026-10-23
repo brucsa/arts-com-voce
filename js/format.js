@@ -103,6 +103,35 @@ export function paraCampo(valor, casasMin = 0, casasMax = casasMin) {
   });
 }
 
+/**
+ * Valor em reais para mostrar dentro de um campo: 29.9 → "R$ 29,90",
+ * 1234.5 → "R$ 1.234,50". lerDecimal/lerValor leem de volta esse texto.
+ */
+export function dinheiroCampo(valor) {
+  if (valor === null || valor === undefined || valor === '') return '';
+  const n = Number(valor);
+  if (!Number.isFinite(n)) return '';
+  return `${n < 0 ? '-' : ''}R$ ${Math.abs(n).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+/**
+ * Campos de dinheiro (marcados com data-dinheiro): ao sair do campo, o valor
+ * digitado vira "R$ 0,00". Texto que não é valor fica como está (o erro
+ * aparece ao salvar). Ligado uma vez para a página inteira.
+ */
+export function ligarCamposDinheiro(raiz = document) {
+  raiz.addEventListener('focusout', e => {
+    const el = e.target;
+    if (!(el instanceof HTMLInputElement) || !el.hasAttribute('data-dinheiro')) return;
+    const t = el.value.trim();
+    const v = lerDecimal(t, 2);
+    if (t && Number.isFinite(v)) {
+      const novo = dinheiroCampo(v);
+      if (novo !== el.value) { el.value = novo; el.dispatchEvent(new Event('input', { bubbles: true })); }
+    }
+  });
+}
+
 function arredN(n, casas) {
   const f = 10 ** casas;
   return Math.round((Number(n) + Number.EPSILON) * f) / f;

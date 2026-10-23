@@ -4,7 +4,7 @@
 import { supabase, configurado } from '../supabase.js';
 import { cliqueForaDoDialogo } from '../ui/dialogo.js';
 import { ok } from '../db.js';
-import { esc, brl, dataBR, hojeISO, lerValor, paraCampo } from '../format.js';
+import { esc, brl, dataBR, hojeISO, lerValor, paraCampo, dinheiroCampo } from '../format.js';
 import { abrirFormulario } from '../ui/formulario.js';
 import { ORIGEM, ROTULO_FORMA, intervaloMes, mesAtual, nomeMes } from '../financeiro.js';
 import { abrirNovoGasto, oferecerGastoDosOutros } from './gastos.js';
@@ -219,7 +219,7 @@ function abrirPagamentoMultiplo(gastos, aoSalvar) {
               <span><strong>${esc(g.descricao)}</strong>
               <small>${dataBR(g.data)} · ${ROTULO_FORMA[g.forma_pagamento]} · falta ${brl(g.valor_a_pagar)}</small></span>
             </label>
-            <input type="text" inputmode="decimal" class="item-valor" name="valor-${i}" value="${paraCampo(g.valor_a_pagar, 2, 2)}"
+            <input type="text" inputmode="decimal" data-dinheiro class="item-valor" name="valor-${i}" value="${dinheiroCampo(g.valor_a_pagar)}"
               aria-label="Valor pago de ${esc(g.descricao)}" disabled>
           </div>`).join('')}
       </fieldset>

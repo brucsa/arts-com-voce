@@ -12,7 +12,7 @@
 
 import { supabase, configurado } from '../supabase.js';
 import { ok } from '../db.js';
-import { esc, brl, lerDecimal, paraCampo } from '../format.js';
+import { esc, brl, lerDecimal, paraCampo, dinheiroCampo } from '../format.js';
 import { cliqueForaDoDialogo } from '../ui/dialogo.js';
 import { recortarQuadrado } from '../ui/recorte.js';
 import { carregarVariacoes, precoVariacoes, htmlCombinacoesDetalhe, montarEditorVariacoes, abrirFichaVariacao } from './variacoes.js';
@@ -575,7 +575,7 @@ function abrirFormulario(ctx, p) {
               <div class="campo"><label for="p-peso">Peso (g)</label>
                 <input type="text" inputmode="decimal" id="p-peso" name="peso" value="${num(p?.peso_g)}" placeholder="0" autocomplete="off"></div>
               <div class="campo"><label for="p-preco">Preço (R$)</label>
-                <input type="text" inputmode="decimal" id="p-preco" name="preco" value="${p?.preco_venda == null ? '' : paraCampo(p.preco_venda, 2, 2)}" placeholder="0,00" autocomplete="off"></div>
+                <input type="text" inputmode="decimal" data-dinheiro id="p-preco" name="preco" value="${p?.preco_venda == null ? '' : dinheiroCampo(p.preco_venda)}" placeholder="R$ 0,00" autocomplete="off"></div>
             </div>
           </fieldset>
         </div>
@@ -627,12 +627,6 @@ function abrirFormulario(ctx, p) {
   let fotosTela = fotosOriginais.map(f => ({ path: f, url: fotos[f] || null }));
 
   const falhar = msg => { erro.textContent = msg; erro.hidden = false; };
-
-  // Preço em reais com centavos ao sair do campo: "29,9" vira "29,90".
-  form.elements.preco.addEventListener('blur', e => {
-    const v = lerDecimal(e.target.value, 2);
-    if (e.target.value.trim() && Number.isFinite(v) && v >= 0) e.target.value = paraCampo(v, 2, 2);
-  });
 
   // Variações (sql/22): combinações novas começam com o preço do produto.
   const editorVar = variacoes ? montarEditorVariacoes(dialog.querySelector('[data-variacoes]'), p,

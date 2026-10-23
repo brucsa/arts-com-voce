@@ -1,4 +1,4 @@
-import { esc, lerDecimal, paraCampo } from '../format.js';
+import { esc, lerDecimal, paraCampo, dinheiroCampo } from '../format.js';
 import { cliqueForaDoDialogo } from './dialogo.js';
 
 /**
@@ -71,11 +71,15 @@ export function abrirFormulario({ titulo, campos, valores = {}, textoSalvar = 'S
           ${dicaHtml}${erroHtml}</div>`;
       }
       const numerico = c.tipo === 'decimal' || c.tipo === 'inteiro';
-      const mostrado = numerico && typeof v === 'number' ? paraCampo(v, c.casasMin ?? 0, c.casas ?? 0) : (v ?? '');
+      // Dinheiro: decimal com 2 casas fixas (rótulo em R$) aparece como "R$ 0,00".
+      const dinheiro = c.tipo === 'decimal' && c.casas === 2 && c.casasMin === 2;
+      const mostrado = dinheiro && typeof v === 'number' ? dinheiroCampo(v)
+        : numerico && typeof v === 'number' ? paraCampo(v, c.casasMin ?? 0, c.casas ?? 0) : (v ?? '');
+      const ph = dinheiro && (!placeholder || placeholder === '0,00') ? 'R$ 0,00' : placeholder;
       return `<div class="campo"><label for="${id}">${esc(rotulo)}${c.obrigatorio ? '' : ' <em>(opcional)</em>'}</label>
         <input name="${c.nome}" id="${id}" type="text" value="${esc(mostrado)}"
-          ${numerico ? `inputmode="${c.tipo === 'inteiro' ? 'numeric' : 'decimal'}"` : ''}
-          ${placeholder ? `placeholder="${esc(placeholder)}"` : ''} autocomplete="off" ${desc}>
+          ${numerico ? `inputmode="${c.tipo === 'inteiro' ? 'numeric' : 'decimal'}"` : ''} ${dinheiro ? 'data-dinheiro' : ''}
+          ${ph ? `placeholder="${esc(ph)}"` : ''} autocomplete="off" ${desc}>
         ${dicaHtml}${erroHtml}</div>`;
     }).join('');
   }

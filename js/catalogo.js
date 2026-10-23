@@ -68,7 +68,15 @@ function precoItem(i) {
   if (p.combs) return combo(p, i.v)?.preco ?? null;
   return p.sob_consulta ? null : p.preco;
 }
-const nomeItem = i => { const c = combo(achar(i.id), i.v); return c ? `${achar(i.id).nome} · ${c.descricao}` : achar(i.id).nome; };
+/** Valor de opção que é só um número (ex.: "29,9") aparece como dinheiro: "R$ 29,90". */
+function valorTexto(v) {
+  const t = String(v ?? '').trim();
+  if (!/^(R\$\s*)?\d{1,7}([.,]\d{1,2})?$/.test(t)) return t;
+  const n = Number(t.replace(/^R\$\s*/, '').replace(',', '.'));
+  return brl(n);
+}
+const comboTexto = c => c.valores.map(valorTexto).join(' · ');
+const nomeItem = i => { const c = combo(achar(i.id), i.v); return c ? `${achar(i.id).nome} · ${comboTexto(c)}` : achar(i.id).nome; };
 /** Preço no cartão e no topo da página: com combinações, "a partir de" o menor (R114). */
 function faixa(p) {
   if (!p.combs) return { texto: p.sob_consulta ? 'Sob consulta' : brl(p.preco), consulta: p.sob_consulta };
@@ -248,7 +256,7 @@ function htmlOpcoes(p) {
     <fieldset class="escolha" data-opcao="${k}">
       <legend>${esc(o.nome)}</legend>
       <div class="opcao-valores">${o.valores.map(v => `
-        <button type="button" class="opcao-valor" data-valor="${esc(v)}" aria-pressed="${escolha.sel[k] === v}">${esc(v)}</button>`).join('')}
+        <button type="button" class="opcao-valor" data-valor="${esc(v)}" aria-pressed="${escolha.sel[k] === v}">${esc(valorTexto(v))}</button>`).join('')}
       </div>
     </fieldset>`).join('');
 }
@@ -326,7 +334,7 @@ function telaProduto(id) {
       fs.querySelectorAll('[data-valor]').forEach(bt => {
         const fora = !disponivel(p, k, bt.dataset.valor);
         bt.classList.toggle('indisponivel', fora);
-        bt.setAttribute('aria-label', fora ? `${bt.dataset.valor} (não combina com a escolha atual)` : bt.dataset.valor);
+        bt.setAttribute('aria-label', fora ? `${valorTexto(bt.dataset.valor)} (não combina com a escolha atual)` : valorTexto(bt.dataset.valor));
       });
     });
   }
@@ -368,7 +376,7 @@ function telaProduto(id) {
     guardarCarrinho();
     // "Enviar pedido" vai para o carrinho (nome, telefone e envio); "Adicionar mais itens" volta para a vitrine.
     if (e.submitter?.value === 'mais') {
-      aviso = `${qtd > 1 ? `${qtd}× ` : ''}${p.nome}${c ? ` (${c.descricao})` : ''} foi adicionado ao carrinho.`;
+      aviso = `${qtd > 1 ? `${qtd}× ` : ''}${p.nome}${c ? ` (${comboTexto(c)})` : ''} foi adicionado ao carrinho.`;
       location.hash = '#/';
     } else location.hash = '#/carrinho';
   });
@@ -395,7 +403,7 @@ function telaCarrinho() {
         <div class="item-foto">${foto(p, false)}</div>
         <div>
           <div class="item-nome">${esc(p.nome)}</div>
-          ${c ? `<div class="item-combinacao">${esc(c.descricao)}</div>` : ''}
+          ${c ? `<div class="item-combinacao">${esc(comboTexto(c))}</div>` : ''}
           <div class="item-cor">Cores a consultar</div>
           <div class="preco ${preco == null ? 'preco-consulta' : ''}">${preco == null ? 'Sob consulta' : brl(centavos(preco) * i.qtd / 100)}</div>
         </div>

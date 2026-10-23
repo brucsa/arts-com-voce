@@ -4,7 +4,7 @@
 // as telas seguem como antes, sem variações.
 
 import { ok } from '../db.js';
-import { esc, brl, lerDecimal, paraCampo } from '../format.js';
+import { esc, brl, lerDecimal, paraCampo, dinheiroCampo } from '../format.js';
 import { cliqueForaDoDialogo } from '../ui/dialogo.js';
 
 const MAX_OPCOES = 3;
@@ -62,8 +62,8 @@ export function htmlCombinacoesDetalhe(p, comFicha) {
 
 // ---------------------------------------------------------------- editor no formulário do produto
 let seq = 0;
-/** "29,9" → "29,90"; texto que não é valor fica como está (o erro aparece ao salvar). */
-const emReais = t => { const v = lerDecimal(t, 2); return String(t ?? '').trim() && Number.isFinite(v) && v >= 0 ? paraCampo(v, 2, 2) : String(t ?? '').trim(); };
+/** "29,9" → "R$ 29,90"; texto que não é valor fica como está (o erro aparece ao salvar). */
+const emReais = t => { const v = lerDecimal(t, 2); return String(t ?? '').trim() && Number.isFinite(v) && v >= 0 ? dinheiroCampo(v) : String(t ?? '').trim(); };
 const novaChave = () => `n${Date.now().toString(36)}${(seq++).toString(36)}`;
 const chaveComb = chaves => [...chaves].sort().join('|');
 
@@ -77,7 +77,7 @@ export function montarEditorVariacoes(el, p, precoPadrao) {
     valores: o.valores.map(v => ({ id: v.id, chave: v.id, valor: v.valor })) }));
   // Preço e liga/desliga de cada combinação, pela chave dos valores
   const combs = new Map((p?.variacoes || []).map(v => [chaveComb(v.valores), {
-    preco: v.preco == null ? '' : paraCampo(v.preco, 2, 2), ativo: v.ativo, usada: false }]));
+    preco: v.preco == null ? '' : dinheiroCampo(v.preco), ativo: v.ativo, usada: false }]));
   const original = JSON.stringify(payload(true));
 
   function combinacoes() {
@@ -124,7 +124,7 @@ export function montarEditorVariacoes(el, p, precoPadrao) {
           return `<div class="linha-combinacao" data-comb="${esc(k)}">
             <span class="combinacao-nome">${c.map(v => esc(v.valor.trim())).join(' · ')}</span>
             <label class="campo campo-compacto"><span>Preço (R$)</span>
-              <input type="text" inputmode="decimal" data-preco-comb value="${esc(st.preco)}" placeholder="0,00" autocomplete="off"></label>
+              <input type="text" inputmode="decimal" data-dinheiro data-preco-comb value="${esc(st.preco)}" placeholder="R$ 0,00" autocomplete="off"></label>
             <label class="campo-check-inline"><input type="checkbox" data-ativa-comb ${st.ativo ? 'checked' : ''}> Ligada</label>
           </div>`;
         }).join('')}</div>` : ''}
