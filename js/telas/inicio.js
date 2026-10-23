@@ -7,32 +7,14 @@
 import { supabase, configurado } from '../supabase.js';
 import { esc, brl, dataBR, hojeISO } from '../format.js';
 import { mostrarAbaShopee } from './pedidos.js';
+import { intervalo as intervaloDe, htmlFiltroPeriodo, ligarFiltroPeriodo } from '../ui/periodo.js';
 
-const PERIODOS = [
-  { id: 'hoje', titulo: 'Hoje' },
-  { id: 'semana', titulo: 'Semana' },
-  { id: 'mes', titulo: 'Mês' },
-  { id: 'periodo', titulo: 'Período' },
-];
+const intervalo = () => intervaloDe(filtro);
+
 // Abre em Mês (R122); a escolha fica enquanto o sistema estiver aberto.
 const filtro = { periodo: 'mes', de: null, ate: null };
 
 const num = v => Number(v || 0);
-const somarDias = (iso, n) => { const d = new Date(`${iso}T12:00:00`); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); };
-
-/** Datas do período escolhido. Semana: de segunda até hoje. Mês: do dia 1 até hoje. */
-function intervalo() {
-  const hoje = hojeISO();
-  if (filtro.periodo === 'hoje') return { inicio: hoje, fim: hoje };
-  if (filtro.periodo === 'semana') {
-    const dia = new Date(`${hoje}T12:00:00`).getDay();          // 0 = domingo
-    return { inicio: somarDias(hoje, -((dia + 6) % 7)), fim: hoje };
-  }
-  if (filtro.periodo === 'periodo') {
-    return { inicio: filtro.de || `${hoje.slice(0, 7)}-01`, fim: filtro.ate || hoje };
-  }
-  return { inicio: `${hoje.slice(0, 7)}-01`, fim: hoje };
-}
 
 export function telaInicio(el, { perfil }) {
   if (!configurado) {
@@ -45,39 +27,10 @@ export function telaInicio(el, { perfil }) {
         <p class="texto-secundario">${dataBR(hojeISO())}</p>
         <h2>Olá, ${esc(perfil?.nome || '')}</h2>
       </div>
-      <div class="filtro-periodo">
-        <div class="abas abas-periodo" role="group" aria-label="Período">
-          ${PERIODOS.map(p => `<button type="button" class="aba" data-periodo="${p.id}" aria-pressed="${filtro.periodo === p.id}">${p.titulo}</button>`).join('')}
-        </div>
-        <div class="periodo-datas" data-datas ${filtro.periodo === 'periodo' ? '' : 'hidden'}>
-          <label class="campo campo-compacto"><span>De</span><input type="date" name="de" max="${hojeISO()}"></label>
-          <label class="campo campo-compacto"><span>Até</span><input type="date" name="ate" max="${hojeISO()}"></label>
-        </div>
-      </div>
+      ${htmlFiltroPeriodo(filtro)}
     </section>
     <div data-painel aria-live="polite"><p class="texto-secundario">Carregando…</p></div>`;
-  const datas = el.querySelector('[data-datas]');
-  const { inicio, fim } = intervalo();
-  datas.querySelector('[name=de]').value = inicio;
-  datas.querySelector('[name=ate]').value = fim;
-
-  el.querySelector('.abas-periodo').addEventListener('click', e => {
-    const b = e.target.closest('[data-periodo]');
-    if (!b) return;
-    filtro.periodo = b.dataset.periodo;
-    el.querySelectorAll('[data-periodo]').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
-    datas.hidden = filtro.periodo !== 'periodo';
-    if (filtro.periodo === 'periodo') {
-      const i = intervalo();
-      datas.querySelector('[name=de]').value = i.inicio; datas.querySelector('[name=ate]').value = i.fim;
-    }
-    carregar(el);
-  });
-  datas.addEventListener('change', e => {
-    if (e.target.name === 'de') filtro.de = e.target.value || null;
-    if (e.target.name === 'ate') filtro.ate = e.target.value || null;
-    carregar(el);
-  });
+  ligarFiltroPeriodo(el, filtro, () => carregar(el));
   el.addEventListener('click', e => {
     if (e.target.closest('[data-ir-shopee]')) mostrarAbaShopee();
   });

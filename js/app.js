@@ -8,6 +8,7 @@ ligarCamposDinheiro();
 import { telaLogin } from './telas/login.js';
 import { telaEmConstrucao } from './telas/em-construcao.js';
 import { telaInicio } from './telas/inicio.js';
+import { telaRelatorios } from './telas/relatorios.js';
 import { telaJocaPessoal } from './telas/joca-pessoal.js';
 import { telaJoca } from './telas/joca.js';
 import { telaConfiguracoes } from './telas/configuracoes.js';
@@ -260,6 +261,7 @@ function rotearAdmin() {
   else if (rota === 'producao') telaProducao(conteudo);
   else if (rota === 'shopee') telaShopee(conteudo);
   else if (rota === 'joca') telaJoca(conteudo);
+  else if (rota === 'relatorios') telaRelatorios(conteudo);
   else telaEmConstrucao(conteudo, { tela });
 
   conteudo.focus({ preventScroll: true });

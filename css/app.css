@@ -747,3 +747,18 @@ button.atalho { background: var(--papel); font: inherit; font-weight: 700; text-
   .abas-periodo .aba { flex: 1; justify-content: center; padding: 8px 4px; min-width: 0; }
   .periodo-datas .campo { flex: 1; }
 }
+
+/* ---------------------------------------------------------- Relatórios · canais (R129–R131) */
+.tabela-rolagem { overflow-x: auto; }
+.tabela-canais { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.tabela-canais th, .tabela-canais td { padding: 9px 8px; text-align: right; border-bottom: 1px solid var(--linha); white-space: nowrap; }
+.tabela-canais th[scope="row"] { text-align: left; font-weight: 400; color: var(--tinta-2); white-space: normal; }
+.tabela-canais thead th { font-size: .85rem; color: var(--azul-escuro); }
+.tabela-canais .col-total { background: var(--creme); font-weight: 700; }
+.tabela-canais .linha-lucro th, .tabela-canais .linha-lucro td { font-weight: 700; color: var(--tinta); border-top: 2px solid var(--linha-forte); }
+@media (max-width: 599px) {
+  .tabela-canais th, .tabela-canais td { padding: 7px 3px; font-size: .76rem; }
+  .tabela-canais th[scope="row"] { width: 28%; }
+  [data-painel] .cartao:has(.tabela-canais) { padding-left: 12px; padding-right: 12px; }
+}
+.so-leitor { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }

@@ -73,7 +73,7 @@ export const ROTA_INICIAL = 'inicio';   // Dashboard (R122, versão 1.14)
 // Menu principal (no celular, aparece dentro de "Mais"; a barra inferior não muda).
 export const MENU_PRINCIPAL = ['inicio', 'pedidos', 'produtos', 'caixa', 'joca'];
 // Grupo "Mais": telas prontas que ficam fora do menu principal.
-export const MENU_MAIS = ['gastos', 'estoque', 'producao', 'configuracoes'];
+export const MENU_MAIS = ['gastos', 'estoque', 'producao', 'relatorios', 'configuracoes'];
 // As demais telas (Vendas, Canais, Relatórios,
 // Fechamento e Pedidos da Shopee como tela própria) ficam fora do menu, mas
 // continuam abrindo pelo endereço. A Shopee aparece na aba Shopee de Pedidos.
