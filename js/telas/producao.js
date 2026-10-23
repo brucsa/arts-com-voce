@@ -12,7 +12,7 @@ import { ok } from '../db.js';
 import { esc, brl, dataBR, hojeISO, lerDecimal, paraCampo, arred2 } from '../format.js';
 import { cliqueForaDoDialogo } from '../ui/dialogo.js';
 import { abrirFormulario } from '../ui/formulario.js';
-import { carregarVariacoes } from './variacoes.js';
+import { carregarVariacoes, combinacaoTexto } from './variacoes.js';
 
 const ABERTOS = ['AGUARDANDO', 'PRODUZINDO', 'PRONTO'];
 const DESTINO = { PEDIDO: 'Item de pedido', ESTOQUE: 'Estoque de peças prontas', AVULSA: 'Avulsa' };
@@ -23,7 +23,7 @@ const plural = (n, um, varios) => `${n} ${n === 1 ? um : varios}`;
 const mesAtual = () => hojeISO().slice(0, 7);
 /** Lote de peças prontas serve para o item: mesmo produto e mesma combinação (R119). */
 const loteServe = (l, i) => l.produto_id === i.produto_id && (l.variacao_id || null) === (i.variacao_id || null);
-const nomeLote = l => `${l.produto}${l.variacao ? ` · ${l.variacao}` : ''}`;
+const nomeLote = l => `${l.produto}${l.variacao ? ` · ${combinacaoTexto(l.variacao)}` : ''}`;
 
 /** Código de envio: o mesmo formulário enviado de novo não registra duas vezes. */
 export function novaChave() {
@@ -371,7 +371,7 @@ export async function abrirRegistroProducao(sb, { dados, itemId = null, aoConclu
     const vs = (p?.variacoes || []).filter(v => v.ativo);
     caixa.hidden = !vs.length;
     f.variacao.innerHTML = '<option value="">Escolha a combinação</option>'
-      + vs.map(v => `<option value="${v.id}">${esc(v.descricao)}</option>`).join('');
+      + vs.map(v => `<option value="${v.id}">${esc(combinacaoTexto(v.descricao))}</option>`).join('');
   }
 
   /** Materiais que podem entrar numa linha (filamento; insumo fora da falha; embalagem só na avulsa). */

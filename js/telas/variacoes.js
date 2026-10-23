@@ -38,13 +38,25 @@ export async function carregarVariacoes(sb, produtos) {
   return true;
 }
 
+/** Valor de opção que é só um número ("29,9") aparece em reais: "R$ 29,90". */
+export function valorOpcaoTexto(v) {
+  const t = String(v ?? '').trim();
+  if (!/^(R\$\s*)?\d{1,7}([.,]\d{1,2})?$/.test(t)) return t;
+  return dinheiroCampo(lerDecimal(t, 2));   // "R$ 29,90", com espaço comum
+}
+/** Nome da combinação ("29,9 · Rosa") com os valores numéricos em reais. */
+export const combinacaoTexto = d => String(d ?? '').split(' · ').map(valorOpcaoTexto).join(' · ');
+
 /** Preço do produto com combinações (R114): "a partir de" o menor preço das ligadas. */
 export function precoVariacoes(p) {
   const ligadas = (p.variacoes || []).filter(v => v.ativo);
   if (!ligadas.length) return null;
   const precos = ligadas.filter(v => v.preco != null).map(v => Number(v.preco));
   if (!precos.length) return { texto: 'Sob consulta', minimo: null };
-  return { texto: `a partir de ${brl(Math.min(...precos))}`, minimo: Math.min(...precos) };
+  const min = Math.min(...precos);
+  // Todas ligadas com o mesmo preço: o preço direto, como no catálogo.
+  const iguais = precos.length === ligadas.length && precos.every(x => x === min);
+  return { texto: iguais ? brl(min) : `a partir de ${brl(min)}`, minimo: min };
 }
 
 /** Combinações no detalhe do produto. */
@@ -53,7 +65,7 @@ export function htmlCombinacoesDetalhe(p, comFicha) {
   return `<p class="detalhe-titulo">Combinações <span class="texto-secundario">(${p.opcoes.map(o => esc(o.nome)).join(' × ')})</span></p>
     <ul class="lista-combinacoes">${p.variacoes.map(v => `
       <li class="${v.ativo ? '' : 'inativo'}">
-        <span class="combinacao-nome">${esc(v.descricao)}${v.ativo ? '' : ' <span class="selo-p selo-inativo">Desligada</span>'}</span>
+        <span class="combinacao-nome">${esc(combinacaoTexto(v.descricao))}${v.ativo ? '' : ' <span class="selo-p selo-inativo">Desligada</span>'}</span>
         <strong>${v.preco == null ? 'Sob consulta' : brl(v.preco)}</strong>
         ${comFicha ? `<button type="button" class="botao botao-pequeno" data-ficha-variacao="${v.id}">
           ${v.temFicha ? 'Ficha própria' : 'Ficha do produto'}</button>` : ''}
@@ -74,7 +86,7 @@ const chaveComb = chaves => [...chaves].sort().join('|');
 export function montarEditorVariacoes(el, p, precoPadrao) {
   // Estado: opções com valores (id quando já existe; chave para as novas)
   let opcoes = (p?.opcoes || []).map(o => ({ id: o.id, chave: o.id, nome: o.nome,
-    valores: o.valores.map(v => ({ id: v.id, chave: v.id, valor: v.valor })) }));
+    valores: o.valores.map(v => ({ id: v.id, chave: v.id, valor: valorOpcaoTexto(v.valor) })) }));
   // Preço e liga/desliga de cada combinação, pela chave dos valores
   const combs = new Map((p?.variacoes || []).map(v => [chaveComb(v.valores), {
     preco: v.preco == null ? '' : dinheiroCampo(v.preco), ativo: v.ativo, usada: false }]));
@@ -93,7 +105,24 @@ export function montarEditorVariacoes(el, p, precoPadrao) {
   el.innerHTML = '<div data-area-opcoes></div><div data-area-combinacoes></div>';
   const areaOpcoes = el.querySelector('[data-area-opcoes]');
   const areaComb = el.querySelector('[data-area-combinacoes]');
-  function desenhar() { desenharOpcoes(); desenharCombinacoes(); }
+  function desenhar() { desenharOpcoes(); desenharCombinacoes(); avisar(); }
+  // Avisos de cadastro (não impedem salvar): valor que parece preço e opção
+  // com um valor só, que não vira escolha para o cliente.
+  const pareceValor = t => /^(R\$\s*)?\d{1,7}([.,]\d{1,2})?$/.test(String(t || '').trim());
+  function avisar() {
+    opcoes.forEach((o, i) => {
+      const p = el.querySelector(`[data-opcao="${i}"] [data-aviso-opcao]`);
+      if (!p) return;
+      const preenchidos = o.valores.filter(v => v.valor.trim());
+      const preco = preenchidos.find(v => pareceValor(v.valor));
+      const msg = preco
+        ? `“${preco.valor.trim()}” parece um preço. Aqui vão as escolhas do cliente (ex.: Rosa claro, Vermelha); o preço vai em cada combinação, logo abaixo.`
+        : preenchidos.length === 1
+          ? `Com um valor só, o cliente não tem o que escolher aqui. Para ele escolher, coloque as escolhas como valores desta opção (ex.: “Cor da flor”: Rosa claro, Vermelha).`
+          : '';
+      p.textContent = msg; p.hidden = !msg;
+    });
+  }
   function desenharOpcoes() {
     areaOpcoes.innerHTML = `
       ${opcoes.map((o, i) => `
@@ -109,6 +138,7 @@ export function montarEditorVariacoes(el, p, precoPadrao) {
               <button type="button" class="botao-icone" data-tirar-valor="${j}" aria-label="Tirar o valor ${esc(v.valor || j + 1)}"><i class="ti ti-x" aria-hidden="true"></i></button></span>`).join('')}
             ${o.valores.length < MAX_VALORES ? '<button type="button" class="botao-texto" data-add-valor><i class="ti ti-plus" aria-hidden="true"></i> Valor</button>' : ''}
           </div>
+          <p class="aviso aviso-atencao aviso-opcao" data-aviso-opcao role="status" hidden></p>
         </div>`).join('')}
       ${opcoes.length < MAX_OPCOES ? `<button type="button" class="botao-texto ficha-adicionar" data-add-opcao><i class="ti ti-plus" aria-hidden="true"></i> ${opcoes.length ? 'Adicionar opção' : 'Adicionar variações (ex.: Cor da flor, Tamanho)'}</button>` : ''}`;
   }
@@ -122,7 +152,7 @@ export function montarEditorVariacoes(el, p, precoPadrao) {
           const st = combs.get(k) || { preco: emReais(precoPadrao()), ativo: true };
           combs.set(k, st);
           return `<div class="linha-combinacao" data-comb="${esc(k)}">
-            <span class="combinacao-nome">${c.map(v => esc(v.valor.trim())).join(' · ')}</span>
+            <span class="combinacao-nome">${c.map(v => esc(valorOpcaoTexto(v.valor))).join(' · ')}</span>
             <label class="campo campo-compacto"><span>Preço (R$)</span>
               <input type="text" inputmode="decimal" data-dinheiro data-preco-comb value="${esc(st.preco)}" placeholder="R$ 0,00" autocomplete="off"></label>
             <label class="campo-check-inline"><input type="checkbox" data-ativa-comb ${st.ativo ? 'checked' : ''}> Ligada</label>
@@ -151,10 +181,11 @@ export function montarEditorVariacoes(el, p, precoPadrao) {
     if (e.target.matches('[data-nome-opcao]')) opcoes[Number(op.dataset.opcao)].nome = e.target.value;
     else if (e.target.matches('[data-valor]')) {
       opcoes[Number(op.dataset.opcao)].valores[Number(e.target.dataset.valor)].valor = e.target.value;
+      avisar();
       // O nome das combinações acompanha o valor (sem redesenhar enquanto digita)
       el.querySelectorAll('[data-comb]').forEach(row => {
         const ks = row.dataset.comb.split('|');
-        const nomes = opcoes.map(o => o.valores.find(v => ks.includes(v.chave))?.valor.trim() || '');
+        const nomes = opcoes.map(o => valorOpcaoTexto(o.valores.find(v => ks.includes(v.chave))?.valor || ''));
         row.querySelector('.combinacao-nome').textContent = nomes.join(' · ');
       });
     } else if (e.target.matches('[data-preco-comb]')) combs.get(e.target.closest('[data-comb]').dataset.comb).preco = e.target.value;
@@ -166,7 +197,16 @@ export function montarEditorVariacoes(el, p, precoPadrao) {
       combs.get(e.target.closest('[data-comb]').dataset.comb).preco = e.target.value;
     }
     // Valor apagado ou preenchido muda as combinações: redesenha ao sair do campo
-    if (e.target.matches('[data-valor]')) desenharCombinacoes();
+    if (e.target.matches('[data-valor]')) {
+      const op = e.target.closest('[data-opcao]');
+      const novo = valorOpcaoTexto(e.target.value);
+      if (novo !== e.target.value.trim()) {
+        e.target.value = novo;
+        opcoes[Number(op.dataset.opcao)].valores[Number(e.target.dataset.valor)].valor = novo;
+        avisar();
+      }
+      desenharCombinacoes();
+    }
   });
 
   function payload(semValidar = false) {
@@ -225,7 +265,7 @@ export function abrirFichaVariacao({ sb, p, v, materiais, aoConcluir }) {
   dialog.innerHTML = `
     <form novalidate>
       <div class="folha-topo">
-        <h2 id="ficha-var-titulo">Ficha · ${esc(p.nome)} · ${esc(v.descricao)}</h2>
+        <h2 id="ficha-var-titulo">Ficha · ${esc(p.nome)} · ${esc(combinacaoTexto(v.descricao))}</h2>
         <button type="button" class="botao-icone" data-fechar aria-label="Fechar"><i class="ti ti-x"></i></button>
       </div>
       <p class="campo-dica">${v.temFicha ? 'Esta combinação tem ficha própria.'

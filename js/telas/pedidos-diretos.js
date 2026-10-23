@@ -21,7 +21,7 @@ import { abrirFormulario } from '../ui/formulario.js';
 import { FORMAS, ROTULO_FORMA } from '../financeiro.js';
 import { abrirRegistroProducao, abrirUsarPecaPronta } from './producao.js';
 import { abrirVendaShopee } from './venda-shopee.js';
-import { carregarVariacoes } from './variacoes.js';
+import { carregarVariacoes, combinacaoTexto } from './variacoes.js';
 
 // ---------------------------------------------------------------- nomes
 export const STATUS = {
@@ -761,7 +761,7 @@ function abrirFormularioPedido(ctx, existente) {
   function opcoesVariacao(produtoId, atual) {
     const vs = (produtoPorId(produtoId)?.variacoes || []).filter(v => v.ativo || v.id === atual);
     return '<option value="">Escolha a combinação</option>' + vs.map(v =>
-      `<option value="${v.id}" ${v.id === atual ? 'selected' : ''}>${esc(v.descricao)} · ${v.preco == null ? 'sob consulta' : brl(v.preco)}${v.ativo ? '' : ' (desligada)'}</option>`).join('');
+      `<option value="${v.id}" ${v.id === atual ? 'selected' : ''}>${esc(combinacaoTexto(v.descricao))} · ${v.preco == null ? 'sob consulta' : brl(v.preco)}${v.ativo ? '' : ' (desligada)'}</option>`).join('');
   }
   /** Mostra o campo da combinação só para produto que tem combinações. */
   function ajustarVariacao(el, recriar) {
