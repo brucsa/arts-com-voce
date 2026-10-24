@@ -175,6 +175,33 @@ async function materiais(area, recarregar) {
     const b = e.target.closest('[data-ajustar]');
     if (!b) return;
     const m = estoque.find(x => x.material_id === b.dataset.ajustar);
+    // Material que nunca teve custo (nenhuma compra nem estoque inicial): o ajuste não tem
+    // custo médio para usar, então o Ajustar pede a quantidade e o custo e lança como
+    // material que a loja já tinha (estoque inicial, R52), sem mexer no caixa.
+    if (!(Number(m.custo_medio) > 0)) {
+      abrirFormulario({
+        titulo: `Informar estoque · ${nomeMaterial(m)}`,
+        textoSalvar: 'Salvar',
+        valores: { data: hojeISO() },
+        campos: [
+          { nome: 'quantidade', rotulo: `Quantidade que você tem (${m.unidade})`, tipo: 'decimal', casas: 3,
+            obrigatorio: true, maiorQueZero: true, placeholder: m.unidade === 'g' ? '350' : '10',
+            dica: m.unidade === 'g' ? 'Rolo aberto: os gramas que restam, não o peso do rolo cheio.' : undefined },
+          { nome: 'custo_total', rotulo: 'Quanto vale essa quantidade (R$)', tipo: 'decimal', casas: 2, casasMin: 2,
+            obrigatorio: true, maiorQueZero: true, placeholder: '0,00',
+            dica: 'É o primeiro custo deste material. Proporcional ao que sobrou: rolo de 1 kg que custou R$ 90,00 com 350 g → R$ 31,50.' },
+          { nome: 'data', rotulo: 'Data', tipo: 'data', obrigatorio: true, maxData: hojeISO() },
+          { nome: 'obs', rotulo: 'Observação', tipo: 'texto', placeholder: 'Rolo aberto' },
+        ],
+        async aoSalvar(v) {
+          await sb.rpc('registrar_estoque_inicial', { p_material_id: m.material_id, p_data: v.data,
+            p_quantidade: v.quantidade, p_custo_total: v.custo_total, p_marca: null, p_obs: v.obs || null }).then(ok);
+          await recarregar();
+          avisar(`${quantidade(v.quantidade, m.unidade)} lançados no estoque. O caixa não mudou.`);
+        },
+      });
+      return;
+    }
     const chave = novaChave();
     abrirFormulario({
       titulo: `Ajustar estoque · ${nomeMaterial(m)}`,
