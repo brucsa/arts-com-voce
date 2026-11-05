@@ -260,7 +260,8 @@ function telaVitrine() {
 
 /** Opções com mais de um valor: são as que o cliente escolhe (R117). */
 const opcoesDeEscolha = p => p.opcoes.map((o, k) => ({ ...o, k })).filter(o => o.valores.length > 1);
-/** Escolha das opções (R117): uma lista de seleção por opção, só com os nomes; o preço fica na etiqueta do topo. */
+/** Escolha das opções (R117): uma lista de seleção por opção. Cada nome leva o preço na frente
+ *  (05/11/2026, a pedido da Bruna), para o cliente não precisar escolher um por um. */
 function htmlOpcoes(p) {
   return opcoesDeEscolha(p).map(o => `
     <label class="campo-escolha" data-opcao="${o.k}">
@@ -273,6 +274,17 @@ function htmlOpcoes(p) {
 /** Combinação ligada com exatamente os valores escolhidos, ou null. */
 const comboEscolhido = p => (p.combs && escolha.sel.length === p.opcoes.length && escolha.sel.every(Boolean)
   ? p.combs.find(c => c.valores.every((v, k) => v === escolha.sel[k])) || null : null);
+/** Preço de um valor no menu: o das combinações com ele e com o que já foi escolhido nas outras
+ *  opções. Um preço só → "R$ 15,00"; preços diferentes → "a partir de R$ 15,00"; sem preço → "sob consulta". */
+function precoDoValor(p, k, valor) {
+  const cs = p.combs.filter(c => c.valores[k] === valor
+    && c.valores.every((v, n) => n === k || !escolha.sel[n] || escolha.sel[n] === v));
+  if (!cs.length) return '';
+  const precos = cs.filter(c => c.preco != null).map(c => Number(c.preco));
+  if (!precos.length) return 'sob consulta';
+  const min = Math.min(...precos);
+  return precos.length === cs.length && precos.every(x => x === min) ? brl(min) : `a partir de ${brl(min)}`;
+}
 /** Um valor só fica disponível se existir combinação ligada com ele e com os outros já escolhidos. */
 const disponivel = (p, k, valor) => p.combs.some(c => c.valores[k] === valor
   && c.valores.every((v, n) => n === k || !escolha.sel[n] || escolha.sel[n] === v));
@@ -339,10 +351,13 @@ function telaProduto(id) {
     opcoesEl.innerHTML = htmlOpcoes(p);
     // Valor que não combina com o resto da escolha aparece marcado, mas pode ser
     // escolhido: ele entra e o que não combina com ele sai da escolha.
+    const semPreco = p.combs.every(c => c.preco == null);      // tudo sob consulta: o topo já diz
     opcoesEl.querySelectorAll('[data-opcao]').forEach(lb => {
       const k = Number(lb.dataset.opcao);
       lb.querySelectorAll('option[value]:not([value=""])').forEach(op => {
-        if (!disponivel(p, k, op.value)) op.textContent = `${op.textContent} (não combina com a escolha)`;
+        if (!disponivel(p, k, op.value)) { op.textContent = `${op.textContent} (não combina com a escolha)`; return; }
+        const preco = semPreco ? '' : precoDoValor(p, k, op.value);
+        if (preco) op.textContent = `${op.textContent} — ${preco}`;
       });
     });
   }
